@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>LinkedIn Job Extractor</title>
+		<style>
+			:root {
+				--bg: #f4f7f8;
+				--panel: #ffffff;
+				--ink: #132329;
+				--brand: #0a66c2;
+				--muted: #557178;
+				--ok: #0f8a5f;
+				--err: #b42318;
+			}
+
+			* {
+				box-sizing: border-box;
+			}
+
+			body {
+				width: 420px;
+				margin: 0;
+				font-family: Segoe UI, Tahoma, sans-serif;
+				background: linear-gradient(160deg, #e6f2ff 0%, var(--bg) 50%, #f8fafc 100%);
+				color: var(--ink);
+			}
+
+			.wrap {
+				padding: 14px;
+			}
+
+			h1 {
+				margin: 0 0 8px;
+				font-size: 16px;
+			}
+
+			.toolbar {
+				display: flex;
+				gap: 8px;
+				margin-bottom: 8px;
+			}
+
+			button {
+				border: 0;
+				border-radius: 8px;
+				padding: 9px 11px;
+				cursor: pointer;
+				font-weight: 600;
+			}
+
+			#extractBtn {
+				background: var(--brand);
+				color: #fff;
+			}
+
+			#copyBtn {
+				background: #e8edf2;
+				color: #17323d;
+			}
+
+			#status {
+				min-height: 18px;
+				margin-bottom: 8px;
+				color: var(--muted);
+				font-size: 12px;
+			}
+
+			#status.ok {
+				color: var(--ok);
+			}
+
+			#status.err {
+				color: var(--err);
+			}
+
+			textarea {
+				width: 100%;
+				height: 300px;
+				border: 1px solid #c8d3da;
+				border-radius: 8px;
+				padding: 10px;
+				resize: vertical;
+				font-family: Consolas, monospace;
+				font-size: 12px;
+				background: var(--panel);
+			}
+		</style>
+	</head>
+	<body>
+		<div class="wrap">
+			<h1>LinkedIn Job JSON Extractor</h1>
+			<div class="toolbar">
+				<button id="extractBtn">Extract Current Job</button>
+				<button id="copyBtn" type="button">Copy JSON</button>
+			</div>
+			<div id="status">Open a LinkedIn job page, then click Extract.</div>
+			<textarea id="output" spellcheck="false" placeholder="JSON response will appear here..."></textarea>
+		</div>
+		<script src="popup.js"></script>
+	</body>
+</html>
