@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+from datetime import datetime
 
 
 class ResumeCreateRequest(BaseModel):
@@ -10,6 +11,16 @@ class ResumeCreateRequest(BaseModel):
 class ResumeCreateResponse(BaseModel):
     resume_id: str
     status: str
+
+
+class ResumeListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    is_master: bool
+    created_at: datetime
+
 
 class ResumeMatchRequest(BaseModel):
     resume_id: str

@@ -67,6 +67,52 @@ frontend must poll or rely on a webhook/websocket (not yet implemented).
 
 ### 3.1 Jobs
 
+#### `GET /api/jobs`
+
+List all ingested jobs, newest first.
+
+**Response `200`** — `JobListItem[]`
+
+```jsonc
+[
+  {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "company_name": "Acme Corp",
+    "role_title": "Senior QA Engineer",
+    "source": "linkedin",
+    "created_at": "2026-06-14T10:00:00"
+  }
+]
+```
+
+Use this to populate the job selector on Screen 3 and the job history list on Screen 1.
+
+---
+
+#### `GET /api/jobs/{job_id}`
+
+Fetch full detail for a single job.
+
+**Response `200`** — `JobDetail` — see [§4.8](#48-joblistitem--jobdetail).
+
+**Response `404`** — `{ "detail": "job_not_found" }`
+
+---
+
+#### `GET /api/jobs/{job_id}/analysis`
+
+Fetch the most recent analysis result for a job (returns raw `JobAnalysisResult` JSON).
+
+**Response `200`** — `JobAnalysisResult` — see [§4.1](#41-jobanalysisresult).
+
+**Response `404`** — `{ "detail": "analysis_not_found" }` — job exists but hasn't been analysed yet.
+
+> Use this to check whether a `skip_job_analysis: true` flag is safe to set before
+> calling the orchestrator. Also useful for re-displaying past analysis results
+> without re-running the agent.
+
+---
+
 #### `POST /api/jobs/ingest`
 
 Ingest a raw job description payload (typically sent by the browser extension).
@@ -132,6 +178,27 @@ Final event is `data: [DONE]`.
 ---
 
 ### 3.2 Resumes
+
+#### `GET /api/resumes`
+
+List all stored resumes, newest first.
+
+**Response `200`** — `ResumeListItem[]`
+
+```jsonc
+[
+  {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "name": "My Master Resume",
+    "is_master": true,
+    "created_at": "2026-06-14T09:30:00"
+  }
+]
+```
+
+Use this to populate the resume selector on Screen 3 and the saved resumes list on Screen 2.
+
+---
 
 #### `POST /api/resumes`
 
@@ -424,6 +491,43 @@ See §3.3 above for the full JSON shapes.
 
 ---
 
+### 4.8 `JobListItem` / `JobDetail`
+
+Returned by `GET /api/jobs` and `GET /api/jobs/{job_id}` respectively.
+
+```typescript
+interface JobListItem {
+  id: string;
+  company_name: string | null;
+  role_title: string | null;
+  source: string;
+  created_at: string;           // ISO datetime
+}
+
+interface JobDetail extends JobListItem {
+  experience: string | null;
+  salary_range: string | null;
+  job_description: string | null;
+}
+```
+
+---
+
+### 4.9 `ResumeListItem`
+
+Returned by `GET /api/resumes`.
+
+```typescript
+interface ResumeListItem {
+  id: string;
+  name: string;
+  is_master: boolean;
+  created_at: string;           // ISO datetime
+}
+```
+
+---
+
 ## 5. Agent Pipeline Deep Dive
 
 ### Execution order
@@ -495,7 +599,7 @@ results already exist:
 **UI elements:**
 - Job title, company name inputs (used later for Interview Research)
 - "Ingest" button → show `job_id` confirmation toast
-- Job history list (if you maintain local state)
+- Job history list — **populate with `GET /api/jobs`** on page load; re-fetch after each ingest
 
 ---
 
@@ -507,7 +611,7 @@ results already exist:
 - Upload `.md` or `.txt` file (use `multipart/form-data`)
 - Paste raw Markdown in a text area
 - "Set as master" toggle
-- Saved resumes list with `resume_id`
+- Saved resumes list — **populate with `GET /api/resumes`** on page load; badge master resume
 
 ---
 
@@ -516,14 +620,15 @@ results already exist:
 **Purpose:** Fire the orchestrator pipeline.
 
 **UI elements:**
-- Job selector (shows ingested jobs with title + company)
-- Resume selector (shows stored resumes)
+- Job selector — **populate with `GET /api/jobs`**; display `role_title @ company_name`; show date ingested
+- Resume selector — **populate with `GET /api/resumes`**; badge master resume
 - Optional: Company Name + Role Title inputs (improve Interview Research quality)
 - "Analyse" button → `POST /api/orchestrate` with `background=true`
 - Progress indicator (see §7 for polling)
 
-**Recommended:** Pass `background=false` if you want results immediately without
-polling complexity (suitable for fast LLM providers). Expect 15–60 s response time.
+**Skip-flag optimisation:** Before posting to `/api/orchestrate`, call
+`GET /api/jobs/{job_id}/analysis`. If it returns `200`, set `skip_job_analysis: true`
+in the orchestrator request to avoid re-running that agent.
 
 ---
 
@@ -626,28 +731,39 @@ Each tab:
 
 ## 7. Status Polling Pattern
 
-When `background=true`, the pipeline runs asynchronously. The backend does **not**
-yet expose a GET endpoint for polling — **implement one of the following strategies**:
+When `background=true`, the pipeline runs asynchronously. Use the following strategies:
 
-### Option A — Short Polling (simple, recommended for v1)
+### Option A — Short Polling via `GET /api/jobs/{job_id}/analysis`
+
+The analysis GET endpoint is available now. Poll it after kicking off
+`POST /api/jobs/{job_id}/analyze`:
 
 ```typescript
-async function pollUntilDone(jobId: string, resumeId: string): Promise<OrchestratorResponse> {
-  // POST with background=false immediately (simplest approach for small payloads)
-  // OR implement a GET /api/orchestrate/status/{job_id}/{resume_id} endpoint
+async function pollForAnalysis(jobId: string, intervalMs = 3000, maxAttempts = 20) {
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, intervalMs));
+    const res = await fetch(`/api/jobs/${jobId}/analysis`);
+    if (res.ok) return await res.json(); // JobAnalysisResult ready
+  }
+  throw new Error("Analysis timed out");
 }
 ```
 
-**Recommended immediate workaround:** Call `POST /api/orchestrate` with
-`background=false`. The request blocks until complete (15–60 s). Show a
-progress spinner with stage labels that animate through the pipeline steps.
+For the full orchestrator pipeline, the same pattern applies using the orchestrator
+result IDs stored in the `OrchestratorResponse`.
 
-### Option B — Background + Polling (needs a new status endpoint)
+### Option B — Sync mode (simple, recommended for v1)
 
-Request a new endpoint from the backend: `GET /api/orchestrate/status/{job_id}/{resume_id}`
-that reads the DB and returns the current `OrchestratorResponse`.
+Call `POST /api/orchestrate` with `background=false`. The request blocks until
+complete (15–60 s). Show a progress spinner with stage labels that animate through
+the pipeline steps.
 
-### Option C — WebSocket / SSE (future)
+### Option C — Background + Status endpoint (future)
+
+Request a new endpoint: `GET /api/orchestrate/status/{job_id}/{resume_id}` that
+reads the DB and returns the current `OrchestratorResponse`.
+
+### Option D — WebSocket / SSE (future)
 
 Not yet implemented in the backend.
 
@@ -738,6 +854,14 @@ User clicks "Extract" in popup
 interface JobIngestRequest { source: string; payload: Record<string, unknown> }
 interface JobIngestResponse { job_id: string; status: string }
 
+interface JobListItem {
+  id: string; company_name: string | null; role_title: string | null;
+  source: string; created_at: string;
+}
+interface JobDetail extends JobListItem {
+  experience: string | null; salary_range: string | null; job_description: string | null;
+}
+
 interface JobAnalysisResult {
   required_skills: string[]; preferred_skills: string[];
   programming_languages: string[]; tools: string[]; frameworks: string[];
@@ -746,6 +870,7 @@ interface JobAnalysisResult {
 }
 
 // ── Resume ───────────────────────────────────────────────────────────────────
+interface ResumeListItem { id: string; name: string; is_master: boolean; created_at: string }
 interface ResumeCreateRequest { name: string; content: string; is_master?: boolean }
 interface ResumeCreateResponse { resume_id: string; status: string }
 

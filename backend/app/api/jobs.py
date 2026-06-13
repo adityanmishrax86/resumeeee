@@ -11,9 +11,13 @@ from app.db.database import get_db, SessionLocal
 
 from app.schemas.job_schema import (
     JobIngestRequest,
-    JobIngestResponse
+    JobIngestResponse,
+    JobListItem,
+    JobDetail,
 )
 
+from app.models.models import Job
+from app.models.analysis_models import JobAnalysis
 from app.services.job_service import JobService
 from app.services.job_analyzer_service import JobAnalyzerService
 from app.llm.clients import MockLLMClient, NvidiaNIMClient
@@ -23,6 +27,32 @@ router = APIRouter(
     prefix="/api/jobs",
     tags=["jobs"]
 )
+
+
+@router.get("", response_model=list[JobListItem])
+def list_jobs(db: Session = Depends(get_db)):
+    return db.query(Job).order_by(Job.created_at.desc()).all()
+
+
+@router.get("/{job_id}", response_model=JobDetail)
+def get_job(job_id: str, db: Session = Depends(get_db)):
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="job_not_found")
+    return job
+
+
+@router.get("/{job_id}/analysis")
+def get_job_analysis(job_id: str, db: Session = Depends(get_db)):
+    ja = (
+        db.query(JobAnalysis)
+        .filter(JobAnalysis.job_id == job_id)
+        .order_by(JobAnalysis.created_at.desc())
+        .first()
+    )
+    if not ja:
+        raise HTTPException(status_code=404, detail="analysis_not_found")
+    return ja.result
 
 
 @router.post(

@@ -11,7 +11,8 @@ from app.schemas.resume_schema import (
     ResumeCreateRequest,
     ResumeCreateResponse,
     ResumeMatchRequest,
-    ResumeMatchResult
+    ResumeMatchResult,
+    ResumeListItem,
 )
 
 from app.services.resume_service import (
@@ -19,6 +20,7 @@ from app.services.resume_service import (
 )
 from app.agents import resume_matcher_agent
 from app.models.analysis_models import ResumeMatch
+from app.models.models import Resume
 import uuid
 import json
 import ast
@@ -28,6 +30,11 @@ router = APIRouter(
     prefix="/api/resumes",
     tags=["resumes"]
 )
+
+
+@router.get("", response_model=list[ResumeListItem])
+def list_resumes(db: Session = Depends(get_db)):
+    return db.query(Resume).order_by(Resume.created_at.desc()).all()
 
 
 @router.post("", response_model=ResumeCreateResponse)
