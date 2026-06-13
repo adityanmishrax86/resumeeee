@@ -1,0 +1,7 @@
+job_analysis:
+{job_analysis}
+
+resume_match:
+{resume_match}
+
+Based on the job_analysis and resume_match above, produce a GapAnalysisResult JSON object as described in the system prompt.

@@ -4,6 +4,7 @@ import os
 
 from app.api.jobs import router as jobs_router
 from app.api.resumes import router as resumes_router
+from app.api.orchestrator import router as orchestrator_router
 
 # Configure basic logging from env var LOG_LEVEL (default INFO)
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -16,3 +17,4 @@ app = FastAPI(
 
 app.include_router(jobs_router)
 app.include_router(resumes_router)
+app.include_router(orchestrator_router)

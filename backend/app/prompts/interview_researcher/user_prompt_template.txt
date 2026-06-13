@@ -1,0 +1,7 @@
+job_analysis:
+{job_analysis}
+
+company_name: {company_name}
+role_title: {role_title}
+
+Using the job_analysis and optional company and role context above, produce an InterviewResearchResult JSON object as described in the system prompt.

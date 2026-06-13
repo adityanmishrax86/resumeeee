@@ -17,6 +17,7 @@ from app.schemas.job_schema import (
 from app.services.job_service import JobService
 from app.services.job_analyzer_service import JobAnalyzerService
 from app.llm.clients import MockLLMClient, NvidiaNIMClient
+from app.agents import get_job_analyzer_agent
 
 router = APIRouter(
     prefix="/api/jobs",
@@ -59,80 +60,76 @@ def analyze_job(
     Pass `?background=false` to run synchronously and return the analysis JSON.
     """
 
-    # Select LLM client based on env; default to MockLLMClient for now.
+    # Use the singleton agent to run analyses (agent created based on LLM_PROVIDER)
     llm_provider = os.getenv("LLM_PROVIDER", "mock").lower()
     logging.info("LLM provider selected: %s", llm_provider)
-    if llm_provider in ("nim", "nvidia", "nvidia-nim"):
-        try:
-            client = NvidiaNIMClient()
-            logging.info("Initialized NvidiaNIMClient with invoke_url=%s model=%s", getattr(client, 'invoke_url', None), getattr(client, 'model', None))
-        except Exception:
-            logging.exception("Failed to initialize NvidiaNIMClient, falling back to MockLLMClient")
-            client = MockLLMClient()
-    else:
-        client = MockLLMClient()
-        logging.info("Using MockLLMClient for LLM operations")
+    agent = get_job_analyzer_agent()
 
     if stream and background:
         raise HTTPException(status_code=400, detail="stream cannot be used with background=true")
 
     if stream:
-        # Prepare prompts and stream the LLM output as SSE
-        try:
-            system_prompt, user_prompt = JobAnalyzerService.prepare_prompts(db, job_id)
-        except ValueError as ve:
-            raise HTTPException(status_code=404, detail=str(ve))
-
-        # Generate streaming iterator from client
-        gen = client.generate(system_prompt=system_prompt, user_prompt=user_prompt, stream=True)
-
-        # Wrap generator or string into SSE formatted StreamingResponse
-        def sse_wrapper():
-            # If client returned a single string, send it as one data event
-            if isinstance(gen, str):
-                yield f"data: {gen}\n\n"
-                yield "data: [DONE]\n\n"
-                return
+        # Streaming is only supported for providers that expose SSE (NVIDIA NIM).
+        if llm_provider in ("nim", "nvidia", "nvidia-nim"):
+            try:
+                client = NvidiaNIMClient()
+            except Exception:
+                logging.exception("Failed to initialize NvidiaNIMClient for streaming")
+                raise HTTPException(status_code=500, detail="streaming_init_failed")
 
             try:
-                for chunk in gen:
-                    # Each chunk is expected to be a JSON string or text
-                    if chunk is None:
-                        continue
-                    yield f"data: {chunk}\n\n"
-            except GeneratorExit:
-                return
+                system_prompt, user_prompt = JobAnalyzerService.prepare_prompts(db, job_id)
+            except ValueError as ve:
+                raise HTTPException(status_code=404, detail=str(ve))
 
-        return StreamingResponse(sse_wrapper(), media_type="text/event-stream")
+            gen = client.generate(system_prompt=system_prompt, user_prompt=user_prompt, stream=True)
+
+            def sse_wrapper():
+                if isinstance(gen, str):
+                    yield f"data: {gen}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+                try:
+                    for chunk in gen:
+                        if chunk is None:
+                            continue
+                        yield f"data: {chunk}\n\n"
+                except GeneratorExit:
+                    return
+
+            return StreamingResponse(sse_wrapper(), media_type="text/event-stream")
+
+        raise HTTPException(status_code=400, detail="streaming not supported for selected LLM provider")
 
     if background:
-        # Run in background using a fresh DB session
-        def _run_analysis(bg_job_id: str, llm_client):
+        # Run in background using a fresh DB session and the async agent
+        def _run_analysis(bg_job_id: str):
             db2 = SessionLocal()
             try:
-                JobAnalyzerService.analyze_job(db2, bg_job_id, llm_client)
+                import asyncio
+
+                asyncio.run(agent.run(db2, bg_job_id))
             except Exception:
                 logging.exception("Background job analysis failed for %s", bg_job_id)
             finally:
                 db2.close()
 
         if background_tasks is None:
-            # BackgroundTasks should be provided by FastAPI; if it's not, run sync
             background_tasks = BackgroundTasks()
 
-        background_tasks.add_task(_run_analysis, job_id, client)
+        background_tasks.add_task(_run_analysis, job_id)
 
         return {"job_id": job_id, "status": "analysis_queued"}
 
     # synchronous path
     try:
-        result = JobAnalyzerService.analyze_job(db, job_id, client)
-        # pydantic v2 uses model_dump(); model_dump returns a dict suitable for JSON response
-        try:
-            return result.model_dump()
-        except Exception:
-            # Fallback for pydantic v1 compatibility
-            return result.dict()
+        # Run the async agent synchronously for the request-response path
+        import asyncio
+
+        result = asyncio.run(agent.run(db, job_id))
+        # Return the Pydantic model instance directly so FastAPI can handle
+        # serialization and validation. Agent.run returns a Pydantic model.
+        return result
     except ValueError as ve:
         raise HTTPException(status_code=404, detail=str(ve))
     except Exception:

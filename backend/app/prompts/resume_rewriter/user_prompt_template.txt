@@ -1,0 +1,9 @@
+{resume_md}
+
+Job analysis:
+{job_analysis}
+
+Gap analysis:
+{gap_analysis}
+
+Using the resume above and the analyses, produce a ResumeRewriteResult JSON object with three variants as specified in the system prompt.
