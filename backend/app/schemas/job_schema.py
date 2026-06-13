@@ -1,6 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Any, Optional
 from datetime import datetime
+from uuid import UUID
 
 
 class JobIngestRequest(BaseModel):
@@ -16,7 +17,7 @@ class JobIngestResponse(BaseModel):
 class JobListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: str
+    id: UUID
     company_name: Optional[str] = None
     role_title: Optional[str] = None
     source: str
@@ -26,7 +27,7 @@ class JobListItem(BaseModel):
 class JobDetail(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: str
+    id: UUID
     company_name: Optional[str] = None
     role_title: Optional[str] = None
     source: str

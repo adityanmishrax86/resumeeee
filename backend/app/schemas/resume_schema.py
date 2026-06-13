@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
+from uuid import UUID
 
 
 class ResumeCreateRequest(BaseModel):
@@ -16,7 +17,7 @@ class ResumeCreateResponse(BaseModel):
 class ResumeListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: str
+    id: UUID
     name: str
     is_master: bool
     created_at: datetime
