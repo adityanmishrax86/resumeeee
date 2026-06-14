@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 
 
 class GapItem(BaseModel):
@@ -14,7 +14,7 @@ class GapAnalysisResult(BaseModel):
     moderate_gaps: List[GapItem] = Field(default_factory=list)
     minor_gaps: List[GapItem] = Field(default_factory=list)
     quick_wins: List[str] = Field(default_factory=list)
-    resume_strategy: str = ""
-    cover_letter_angle: str = ""
-    honesty_flag: bool = False
-    honesty_note: str = ""
+    resume_strategy: Optional[str] = ""
+    cover_letter_angle: Optional[str] = ""
+    honesty_flag: Optional[bool] = False
+    honesty_note: Optional[str] = ""

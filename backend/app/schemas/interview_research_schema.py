@@ -1,12 +1,14 @@
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 
 
 class InterviewQuestion(BaseModel):
     question: str
-    category: str
-    why_asked: str
+    category: str = ""
+    why_asked: str = ""
     strong_answer_tips: List[str] = Field(default_factory=list)
+    detailed_answer: Optional[str] = None
+    source: Optional[str] = None  # "company" | "profile" | "user"
 
 
 class InterviewResearchResult(BaseModel):

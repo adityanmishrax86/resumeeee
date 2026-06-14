@@ -1,5 +1,12 @@
 from app.models.models import Resume
-from app.models.analysis_models import JobAnalysis
+from app.models.analysis_models import (
+    JobAnalysis,
+    ResumeAnalysis,
+    ResumeMatch,
+    GapAnalysis,
+    ResumeRewrite,
+    ApplicationRun,
+)
 from app.schemas.resume_schema import ResumeMatchResult
 from pathlib import Path
 from sqlalchemy.orm import Session
@@ -37,6 +44,33 @@ class ResumeService:
         db.refresh(resume)
 
         return str(resume.id)
+
+    @staticmethod
+    def delete_resume(db, resume_id: str) -> bool:
+        """Cascade-delete a resume and every derived analysis row.
+
+        Walks from deepest descendant up to the resume itself. Returns True
+        if the resume existed and was deleted.
+        """
+        resume = db.query(Resume).filter(Resume.id == resume_id).first()
+        if resume is None:
+            return False
+
+        rm_ids = [str(r.id) for r in db.query(ResumeMatch).filter(ResumeMatch.resume_id == resume_id).all()]
+        ga_ids = []
+        if rm_ids:
+            ga_ids = [str(g.id) for g in db.query(GapAnalysis).filter(GapAnalysis.resume_match_id.in_(rm_ids)).all()]
+
+        if ga_ids:
+            db.query(ResumeRewrite).filter(ResumeRewrite.gap_analysis_id.in_(ga_ids)).delete(synchronize_session=False)
+            db.query(GapAnalysis).filter(GapAnalysis.id.in_(ga_ids)).delete(synchronize_session=False)
+        db.query(ResumeRewrite).filter(ResumeRewrite.resume_id == resume_id).delete(synchronize_session=False)
+        db.query(ResumeMatch).filter(ResumeMatch.resume_id == resume_id).delete(synchronize_session=False)
+        db.query(ResumeAnalysis).filter(ResumeAnalysis.resume_id == resume_id).delete(synchronize_session=False)
+        db.query(ApplicationRun).filter(ApplicationRun.resume_id == resume_id).delete(synchronize_session=False)
+        db.delete(resume)
+        db.commit()
+        return True
     
     @staticmethod
     def match_resume(db: Session, response_text) -> ResumeMatchResult:

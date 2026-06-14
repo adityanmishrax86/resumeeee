@@ -5,7 +5,7 @@
   "description": "Extracts job details as JSON from LinkedIn and Naukri job pages.",
   "version": "1.3.2",
   "minimum_chrome_version": "114",
-  "permissions": ["activeTab", "scripting", "tabs"],
+  "permissions": ["activeTab", "scripting", "tabs", "storage"],
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",

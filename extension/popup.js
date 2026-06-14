@@ -1,5 +1,6 @@
 const extractBtn = document.getElementById("extractBtn");
 const copyBtn = document.getElementById("copyBtn");
+const sendBtn = document.getElementById("sendBtn");
 const output = document.getElementById("output");
 const statusEl = document.getElementById("status");
 
@@ -70,5 +71,36 @@ async function copyJson() {
   }
 }
 
+const FRONTEND_URL_KEY = 'frontendBaseUrl';
+const DEFAULT_FRONTEND_URL = 'http://localhost:5173';
+
+async function getFrontendBaseUrl() {
+  try {
+    const stored = await chrome.storage.sync.get(FRONTEND_URL_KEY);
+    return stored[FRONTEND_URL_KEY] || DEFAULT_FRONTEND_URL;
+  } catch {
+    return DEFAULT_FRONTEND_URL;
+  }
+}
+
+async function openFrontendUI() {
+  const value = output.value.trim();
+  if (!value) {
+    setStatus("Nothing to send. Please extract first.", "err");
+    return;
+  }
+
+  try {
+    const baseUrl = (await getFrontendBaseUrl()).replace(/\/$/, '');
+    const encoded = encodeURIComponent(value);
+    const url = `${baseUrl}/#/quick-start?payload=${encoded}`;
+    chrome.tabs.create({ url });
+    setStatus("Opened in Dashboard.", "ok");
+  } catch (error) {
+    setStatus("Failed to open: " + error.message, "err");
+  }
+}
+
 extractBtn.addEventListener("click", extractJob);
 copyBtn.addEventListener("click", copyJson);
+sendBtn.addEventListener("click", openFrontendUI);

@@ -94,3 +94,43 @@ class ResumeRewrite(Base):
     result: Mapped[dict] = mapped_column(JSONB)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ApplicationRun(Base):
+    """Per-(job, resume) orchestration run state.
+
+    Drives the new `failed` path in the status endpoint and the single-agent
+    retry endpoint. `agent_statuses` is a JSON map keyed by agent name with
+    `{status, error_code, updated_at}` so the UI can show which step failed.
+    """
+
+    __tablename__ = "application_runs"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id"))
+    resume_id: Mapped[str] = mapped_column(ForeignKey("resumes.id"))
+
+    status: Mapped[str] = mapped_column(String, default="queued")
+    error_code: Mapped[str | None] = mapped_column(String, default=None)
+    error_detail: Mapped[str | None] = mapped_column(Text, default=None)
+
+    agent_statuses: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class CoverLetter(Base):
+    __tablename__ = "cover_letters"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+
+    resume_id: Mapped[str] = mapped_column(ForeignKey("resumes.id"))
+    job_analysis_id: Mapped[str | None] = mapped_column(ForeignKey("job_analysis.id"), default=None)
+    gap_analysis_id: Mapped[str | None] = mapped_column(ForeignKey("gap_analyses.id"), default=None)
+
+    result: Mapped[dict] = mapped_column(JSONB)
+    custom_instructions: Mapped[str | None] = mapped_column(Text, default=None)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -42,6 +42,18 @@ def get_job(job_id: str, db: Session = Depends(get_db)):
     return job
 
 
+@router.delete("/{job_id}", status_code=204)
+def delete_job(job_id: str, db: Session = Depends(get_db)):
+    """Cascade-delete a job and every derived analysis row.
+
+    Returns 204 No Content on success, 404 if the job did not exist.
+    """
+    deleted = JobService.delete_job(db=db, job_id=job_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="job_not_found")
+    return None
+
+
 @router.get("/{job_id}/analysis")
 def get_job_analysis(job_id: str, db: Session = Depends(get_db)):
     ja = (
@@ -77,7 +89,7 @@ def ingest_job(
 
 
 @router.post("/{job_id}/analyze")
-def analyze_job(
+async def analyze_job(
     job_id: str,
     background: bool = True,
     stream: bool = False,
@@ -133,12 +145,10 @@ def analyze_job(
 
     if background:
         # Run in background using a fresh DB session and the async agent
-        def _run_analysis(bg_job_id: str):
+        async def _run_analysis(bg_job_id: str):
             db2 = SessionLocal()
             try:
-                import asyncio
-
-                asyncio.run(agent.run(db2, bg_job_id))
+                await agent.run(db2, bg_job_id)
             except Exception:
                 logging.exception("Background job analysis failed for %s", bg_job_id)
             finally:
@@ -153,10 +163,7 @@ def analyze_job(
 
     # synchronous path
     try:
-        # Run the async agent synchronously for the request-response path
-        import asyncio
-
-        result = asyncio.run(agent.run(db, job_id))
+        result = await agent.run(db, job_id)
         # Return the Pydantic model instance directly so FastAPI can handle
         # serialization and validation. Agent.run returns a Pydantic model.
         return result

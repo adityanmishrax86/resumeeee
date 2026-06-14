@@ -1,7 +1,15 @@
 from typing import Optional, List, Type, Any
 import os
+import re
 
 from app.llm.clients import BaseLLMClient
+from app.llm.exceptions import (
+    LLMError,
+    LLMServiceUnavailable,
+    LLMRateLimited,
+    LLMTimeout,
+    classify_provider_error,
+)
 
 try:
     from pydantic_ai import Agent
@@ -12,6 +20,35 @@ except Exception:
     Agent = None
     GoogleProvider = None
     GoogleModel = None
+
+
+_STATUS_CODE_RE = re.compile(r"status[_ ]?code[=:\s]*(\d{3})", re.IGNORECASE)
+
+
+def _extract_status_code(exc: Exception) -> Optional[int]:
+    """Best-effort pull of an HTTP status code from a pydantic-ai/httpx error.
+
+    pydantic-ai surfaces Google errors with ``status_code`` as both an attribute
+    and inside the stringified message (``status_code: 503, ...``). httpx
+    exceptions expose ``.response.status_code``. We try the structured paths
+    first, then fall back to a regex on the message.
+    """
+    for attr in ("status_code", "code"):
+        value = getattr(exc, attr, None)
+        if isinstance(value, int):
+            return value
+    response = getattr(exc, "response", None)
+    if response is not None:
+        value = getattr(response, "status_code", None)
+        if isinstance(value, int):
+            return value
+    match = _STATUS_CODE_RE.search(str(exc))
+    if match:
+        try:
+            return int(match.group(1))
+        except ValueError:
+            return None
+    return None
 
 
 class GoogleClient(BaseLLMClient):
@@ -71,32 +108,42 @@ class GoogleClient(BaseLLMClient):
         except Exception as exc:
             raise RuntimeError("Failed to initialize pydantic_ai Agent for Google") from exc
 
-    def generate(self, system_prompt: str, user_prompt: str, **kwargs) -> str:
+    async def generate(self, system_prompt: str, user_prompt: str, **kwargs) -> str:
         """Generate a response string using the configured pydantic_ai Agent.
+
+        Async so callers can await it directly inside the FastAPI event loop —
+        no asyncio.run() wrapper, no risk of 'Event loop is closed' errors.
 
         Returns the textual output (or JSON string if the agent produced structured output).
         """
+        import asyncio
+        import logging as _logging
+
         self._init_agent()
 
         prompt = f"{system_prompt}\n\n{user_prompt}" if system_prompt else user_prompt
 
-        # Prefer synchronous helper if provided by pydantic_ai
         try:
-            result = self.agent.run_sync(prompt)
-        except AttributeError:
-            # If only async API is available, run it synchronously when possible
-            try:
-                import asyncio
-
-                # If we're inside an event loop, running sync isn't possible here;
-                # callers should use async paths in that case.
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    raise RuntimeError("Cannot call GoogleClient.generate() from a running event loop; use an async agent instead")
-                result = asyncio.run(self.agent.run(prompt))
-            except Exception:
-                # Last resort: try calling run() directly
-                result = self.agent.run(prompt)
+            result = await asyncio.wait_for(self.agent.run(prompt), timeout=120.0)
+        except asyncio.TimeoutError as exc:
+            _logging.getLogger(__name__).error(
+                "Google LLM call timed out after 120s for model %s", self.model
+            )
+            raise LLMTimeout(
+                f"LLM response timed out after 120s (model={self.model})",
+                provider="google",
+                model=self.model,
+            ) from exc
+        except LLMError:
+            raise
+        except Exception as exc:
+            status_code = _extract_status_code(exc)
+            typed = classify_provider_error(exc, provider="google", model=self.model, status_code=status_code)
+            _logging.getLogger(__name__).error(
+                "Google API call failed: type=%s status=%s model=%s err=%s",
+                type(typed).__name__, typed.status_code, self.model, exc,
+            )
+            raise typed from exc
 
         # Unwrap result objects that expose `.output` per pydantic-ai docs
         output = getattr(result, "output", result)

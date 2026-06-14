@@ -37,6 +37,15 @@ def list_resumes(db: Session = Depends(get_db)):
     return db.query(Resume).order_by(Resume.created_at.desc()).all()
 
 
+@router.delete("/{resume_id}", status_code=204)
+def delete_resume(resume_id: str, db: Session = Depends(get_db)):
+    """Cascade-delete a resume and every derived analysis row."""
+    deleted = ResumeService.delete_resume(db=db, resume_id=resume_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="resume_not_found")
+    return None
+
+
 @router.post("", response_model=ResumeCreateResponse)
 async def create_resume(request: Request, db: Session = Depends(get_db)) -> ResumeCreateResponse:
     """Accept JSON, multipart/form-data, or raw markdown text for resume creation.
@@ -122,13 +131,10 @@ async def create_resume(request: Request, db: Session = Depends(get_db)) -> Resu
     return ResumeCreateResponse(resume_id=resume_id, status="stored")
 
 @router.post("/match", response_model=ResumeMatchResult)
-def match_resume(request: ResumeMatchRequest, db: Session = Depends(get_db)) -> ResumeMatchResult:
+async def match_resume(request: ResumeMatchRequest, db: Session = Depends(get_db)) -> ResumeMatchResult:
     agent = resume_matcher_agent()
     try:
-    # Run the async agent synchronously for the request-response path
-        import asyncio
-
-        result = asyncio.run(agent.run(db, request.resume_id, request.job_analysis_id))
+        result = await agent.run(db, request.resume_id, request.job_analysis_id)
         # Expect the agent to return a ResumeMatchResult or a raw/str dict
         try:
             if isinstance(result, ResumeMatchResult):

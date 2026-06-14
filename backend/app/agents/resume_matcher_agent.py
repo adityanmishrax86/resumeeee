@@ -24,4 +24,13 @@ class ResumeMatcherAgent(AgentAdapter):
 
         result = ResumeService.match_resume(db, response_text)
 
+        from app.models.analysis_models import ResumeMatch
+        match_entry = ResumeMatch(
+            resume_id=resume_id,
+            job_analysis_id=job_analysis_id,
+            result=result.model_dump()
+        )
+        db.add(match_entry)
+        db.commit()
+
         return result

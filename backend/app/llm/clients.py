@@ -10,6 +10,13 @@ except Exception:
     requests = None
 
 from app.llm.nim_schema import NimMessage, NimChatRequest
+from app.llm.exceptions import (
+    LLMError,
+    LLMServiceUnavailable,
+    LLMRateLimited,
+    LLMTimeout,
+    classify_provider_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -164,14 +171,22 @@ class NvidiaNIMClient(BaseLLMClient):
                              getattr(resp, 'status_code', None), elapsed, len(resp_text), resp_text[:5000])
 
                 resp.raise_for_status()
+            except requests.exceptions.Timeout as exc:
+                logger.error("NIM request timed out after 120s model=%s", self.model)
+                raise LLMTimeout(
+                    f"NIM request timed out after 120s (model={self.model})",
+                    provider="nvidia-nim",
+                    model=self.model,
+                ) from exc
             except Exception as exc:
+                status = getattr(resp, 'status_code', None) if 'resp' in locals() else None
                 try:
-                    resp_text = getattr(resp, 'text', None)
+                    resp_text = getattr(resp, 'text', None) if 'resp' in locals() else None
                     logger.error("NIM request failed: status=%s error=%s resp_preview=%s",
-                                 getattr(resp, 'status_code', None), str(exc), (resp_text or '')[:5000])
+                                 status, str(exc), (resp_text or '')[:5000])
                 except Exception:
                     logger.exception("NIM request failed and response could not be read")
-                raise
+                raise classify_provider_error(exc, provider="nvidia-nim", model=self.model, status_code=status) from exc
 
             try:
                 data = resp.json()
