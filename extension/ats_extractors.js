@@ -11,14 +11,21 @@
     const REQUIREMENT_HEADINGS = [
         "requirements",
         "qualifications",
+        "desired experience",
+        "preferred qualifications",
+        "what we're looking for",
         "what you bring",
-        "what we're looking for"
+        "who you are"
     ];
 
     const RESPONSIBILITY_HEADINGS = [
         "responsibilities",
         "what you'll do",
         "what you will do",
+        "what will you do",
+        "role in nutshell",
+        "your impact",
+        "what you'll be doing",
         "about the role"
     ];
 
@@ -34,11 +41,12 @@
     ];
 
     function clean(text) {
-        return (text || "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+        const value = text == null ? "" : String(text);
+        return value.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
     }
 
     function cleanMultiline(text) {
-        const value = (text || "").replace(/\u00a0/g, " ");
+        const value = (text == null ? "" : String(text)).replace(/\u00a0/g, " ");
         const lines = value
             .split(/\r?\n/)
             .map((line) => clean(line))
@@ -72,6 +80,7 @@
         if (host.includes("lever.co")) return "lever";
         if (host.includes("myworkdayjobs")) return "workday";
         if (host.includes("taleo.net")) return "taleo";
+        if (host.includes("careers.oracle.com")) return "oracle_hcm";
         if (host.includes("oraclecloud")) return "oracle_hcm";
         if (host.includes("icims")) return "icims";
         if (host.includes("ashbyhq")) return "ashby";
@@ -90,6 +99,7 @@
             description: "",
             requirements: "",
             responsibilities: "",
+            requiredSkills: "",
             url: window.location.href
         };
     }
@@ -337,6 +347,22 @@
         const role = getText(["h1"]);
         const location = getText(["[data-automation-id='locations']", "[class*='location']"]);
         const company = clean(window.location.hostname.split(".")[0]);
+        const postingNode = document.querySelector("[data-automation-id='jobPostingDescription']");
+
+        // Prefer the dedicated Workday posting body to avoid pulling sidebar content like "About Us".
+        if (postingNode) {
+            const description = textFromNode(postingNode);
+            const sections = splitSections(description);
+
+            return {
+                company,
+                role,
+                location,
+                description,
+                requirements: sections.requirements,
+                responsibilities: sections.responsibilities
+            };
+        }
 
         const headings = Array.from(document.querySelectorAll("h2, h3, strong"));
         const headingTokens = ["job description", "responsibilities", "qualifications", "requirements", "about us"];
@@ -404,49 +430,98 @@
     }
 
     function extractOracleHcm() {
-        const role = getText(["h1"]);
-        const company = clean(window.location.hostname.split(".")[0]);
+        const role = getText(["h1", ".job-details__title"]);
+        const company = "Oracle";
+
+        // Oracle Careers renders sectioned content with headers + content blocks.
+        const sectionNodes = Array.from(document.querySelectorAll(".job-details__section"));
         let description = "";
-        let location = "";
-        let requisitionId = "";
+        let responsibilities = "";
+        let requirements = "";
+        let requiredSkills = "";
 
-        const scripts = Array.from(document.querySelectorAll("script"));
-        for (const script of scripts) {
-            const raw = script.textContent || "";
-            if (!/(job|career|requisition|posting)/i.test(raw)) {
-                continue;
-            }
-            const normalized = cleanMultiline(raw);
-            if (normalized.length > description.length) {
-                description = normalized;
-            }
-        }
+        sectionNodes.forEach((section) => {
+            const header = clean(section.querySelector(".job-details__description-header")?.textContent || "").toLowerCase();
+            const contentNode = section.querySelector(".job-details__description-content");
+            const contentText = textFromNode(contentNode || section);
 
-        Object.keys(window).forEach((key) => {
-            if (/(job|career|requisition|posting)/i.test(key)) {
-                const value = window[key];
-                const asText = cleanMultiline(safeStringify(value));
-                if (asText.length > description.length) {
-                    description = asText;
-                }
-                if (!location && value && typeof value === "object") {
-                    location = clean(value.location || value.jobLocation || value.city);
-                }
-                if (!requisitionId && value && typeof value === "object") {
-                    requisitionId = clean(value.requisitionId || value.reqId || value.id);
-                }
+            if (!contentText) {
+                return;
+            }
+
+            if (!description && header.includes("job description")) {
+                description = contentText;
+                return;
+            }
+
+            if (!responsibilities && header.includes("responsibilit")) {
+                responsibilities = contentText;
+                return;
+            }
+
+            if (!requirements && (header.includes("qualification") || header.includes("required skills") || header.includes("skills"))) {
+                requirements = contentText;
+            }
+
+            if (!requiredSkills && header.includes("required skills")) {
+                const skills = Array.from(section.querySelectorAll(".job-details__skills-skill, .job-details__skill-text"))
+                    .map((node) => clean(node.textContent || ""))
+                    .filter(Boolean);
+                requiredSkills = [...new Set(skills)].join("\n");
             }
         });
 
-        const sections = splitSections(description);
+        if (!requiredSkills) {
+            const skills = Array.from(document.querySelectorAll(".job-details__skills-skill, .job-details__skill-text"))
+                .map((node) => clean(node.textContent || ""))
+                .filter(Boolean);
+            requiredSkills = [...new Set(skills)].join("\n");
+        }
+
+        const location = getText([".job-details__subtitle", "[data-bind*='postingLocationsContent']"]);
+
+        let requisitionId = "";
+        const metaItems = Array.from(document.querySelectorAll(".job-meta__item"));
+        for (const item of metaItems) {
+            const name = clean(item.querySelector(".job-meta__title")?.textContent || "").toLowerCase();
+            if (name.includes("job identification") || name.includes("requisition")) {
+                requisitionId = clean(item.querySelector(".job-meta__subitem")?.textContent || "");
+                if (requisitionId) {
+                    break;
+                }
+            }
+        }
+
+        // Fallbacks when sectioned DOM isn't available yet.
+        if (!description) {
+            const semantic = extractGenericSemantic();
+            description = semantic.description;
+            if (!responsibilities) {
+                responsibilities = semantic.responsibilities;
+            }
+            if (!requirements) {
+                requirements = semantic.requirements;
+            }
+        }
+
+        if ((!responsibilities || !requirements) && description) {
+            const sections = splitSections(description);
+            if (!requirements) {
+                requirements = sections.requirements;
+            }
+            if (!responsibilities) {
+                responsibilities = sections.responsibilities;
+            }
+        }
 
         return {
             company,
             role,
             location,
             description,
-            requirements: sections.requirements,
-            responsibilities: sections.responsibilities,
+            requirements,
+            responsibilities,
+            requiredSkills,
             identifier: requisitionId
         };
     }
