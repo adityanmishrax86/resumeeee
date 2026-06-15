@@ -1,0 +1,432 @@
+{
+  "communities": {
+    "0": [
+      "agentadapter",
+      "agents_gap_analysis_agent",
+      "agents_gap_analysis_agent_gapanalysisagent",
+      "agents_gap_analysis_agent_rationale_12",
+      "agents_resume_analyzer_agent",
+      "agents_resume_analyzer_agent_py_basellmclient",
+      "agents_resume_analyzer_agent_py_resumeanalysisresult",
+      "agents_resume_analyzer_agent_py_session",
+      "agents_resume_analyzer_agent_resumeanalyzeragent",
+      "agents_resume_analyzer_agent_resumeanalyzeragent_init",
+      "agents_resume_analyzer_agent_resumeanalyzeragent_run",
+      "agents_resume_rewrite_agent",
+      "agents_resume_rewrite_agent_rationale_12",
+      "agents_resume_rewrite_agent_resumerewriteagent",
+      "api_orchestrator",
+      "api_orchestrator_make_orchestrator",
+      "api_orchestrator_py_session",
+      "api_orchestrator_rationale_27",
+      "api_orchestrator_rationale_45",
+      "api_orchestrator_run_orchestrator",
+      "models_analysis_models_resumeanalysis",
+      "orchestratorrequest",
+      "orchestratorresponse",
+      "orchestratorservice",
+      "schemas_orchestrator_schema",
+      "schemas_orchestrator_schema_orchestratorrequest",
+      "schemas_orchestrator_schema_orchestratorresponse",
+      "schemas_resume_analysis_schema",
+      "schemas_resume_analysis_schema_resumeanalysisresult",
+      "services_orchestrator_service",
+      "services_orchestrator_service_orchestratorservice",
+      "services_orchestrator_service_orchestratorservice_init",
+      "services_orchestrator_service_orchestratorservice_run",
+      "services_orchestrator_service_py_basellmclient",
+      "services_orchestrator_service_py_session",
+      "services_orchestrator_service_rationale_1",
+      "services_resume_analyzer_service",
+      "services_resume_analyzer_service_extract_json",
+      "services_resume_analyzer_service_py_basellmclient",
+      "services_resume_analyzer_service_py_resumeanalysisresult",
+      "services_resume_analyzer_service_py_session",
+      "services_resume_analyzer_service_resumeanalyzerservice",
+      "services_resume_analyzer_service_resumeanalyzerservice_analyze_resume",
+      "services_resume_analyzer_service_resumeanalyzerservice_prepare_prompts"
+    ],
+    "1": [
+      "abc",
+      "agents_agent_adapter",
+      "agents_agent_adapter_agentadapter",
+      "agents_agent_adapter_agentadapter_generate",
+      "agents_agent_adapter_agentadapter_init",
+      "agents_agent_adapter_agentadapter_run",
+      "agents_agent_adapter_py_basellmclient",
+      "agents_agent_adapter_rationale_11",
+      "agents_agent_adapter_rationale_25",
+      "agents_job_analyzer_agent",
+      "agents_job_analyzer_agent_jobanalyzeragent",
+      "agents_job_analyzer_agent_jobanalyzeragent_init",
+      "agents_job_analyzer_agent_jobanalyzeragent_run",
+      "agents_job_analyzer_agent_py_basellmclient",
+      "agents_job_analyzer_agent_py_jobanalysisresult",
+      "agents_job_analyzer_agent_py_session",
+      "agents_job_analyzer_agent_rationale_12",
+      "agents_resume_matcher_agent",
+      "agents_resume_matcher_agent_py_basellmclient",
+      "agents_resume_matcher_agent_py_resumematchresult",
+      "agents_resume_matcher_agent_py_session",
+      "agents_resume_matcher_agent_rationale_12",
+      "agents_resume_matcher_agent_resumematcheragent",
+      "agents_resume_matcher_agent_resumematcheragent_init",
+      "agents_resume_matcher_agent_resumematcheragent_run",
+      "any",
+      "llm_clients_basellmclient",
+      "llm_clients_basellmclient_generate",
+      "llm_clients_rationale_18",
+      "llm_google_client_googleclient_init",
+      "schemas_job_analysis_schema",
+      "schemas_job_analysis_schema_jobanalysisresult",
+      "services_job_analyzer_service",
+      "services_job_analyzer_service_extract_json",
+      "services_job_analyzer_service_jobanalyzerservice",
+      "services_job_analyzer_service_rationale_18"
+    ],
+    "2": [
+      "agents_interview_research_agent",
+      "agents_interview_research_agent_interviewresearchagent",
+      "agents_interview_research_agent_interviewresearchagent_init",
+      "agents_interview_research_agent_interviewresearchagent_run",
+      "agents_interview_research_agent_interviewresearchagent_run_with_google_tools",
+      "agents_interview_research_agent_interviewresearchagent_run_with_llm_client",
+      "agents_interview_research_agent_py_basellmclient",
+      "agents_interview_research_agent_py_interviewresearchresult",
+      "agents_interview_research_agent_py_session",
+      "agents_interview_research_agent_rationale_17",
+      "agents_interview_research_agent_rationale_53",
+      "basellmclient",
+      "llm_google_client",
+      "llm_google_client_googleclient",
+      "llm_google_client_googleclient_generate",
+      "llm_google_client_googleclient_init_agent",
+      "llm_google_client_rationale_18",
+      "llm_google_client_rationale_53",
+      "models_analysis_models_interviewresearch",
+      "schemas_interview_research_schema_interviewresearchresult",
+      "services_interview_research_service",
+      "services_interview_research_service_extract_json",
+      "services_interview_research_service_interviewresearchservice",
+      "services_interview_research_service_interviewresearchservice_persist_result",
+      "services_interview_research_service_interviewresearchservice_prepare_prompts",
+      "services_interview_research_service_interviewresearchservice_research_interview",
+      "services_interview_research_service_py_basellmclient",
+      "services_interview_research_service_py_interviewresearchresult",
+      "services_interview_research_service_py_session",
+      "services_interview_research_service_rationale_89"
+    ],
+    "3": [
+      "agents_resume_rewrite_agent_py_basellmclient",
+      "agents_resume_rewrite_agent_py_resumerewriteresult",
+      "agents_resume_rewrite_agent_py_session",
+      "agents_resume_rewrite_agent_resumerewriteagent_init",
+      "agents_resume_rewrite_agent_resumerewriteagent_run",
+      "base",
+      "models_analysis_models",
+      "models_analysis_models_jobanalysis",
+      "models_analysis_models_resumerewrite",
+      "schemas_resume_rewrite_schema_resumerewriteresult",
+      "services_job_analyzer_service_jobanalyzerservice_analyze_job",
+      "services_job_analyzer_service_jobanalyzerservice_prepare_prompts",
+      "services_job_analyzer_service_py_basellmclient",
+      "services_job_analyzer_service_py_jobanalysisresult",
+      "services_job_analyzer_service_py_session",
+      "services_job_analyzer_service_rationale_119",
+      "services_resume_rewrite_service",
+      "services_resume_rewrite_service_extract_json",
+      "services_resume_rewrite_service_py_basellmclient",
+      "services_resume_rewrite_service_py_resumerewriteresult",
+      "services_resume_rewrite_service_py_session",
+      "services_resume_rewrite_service_resumerewriteservice",
+      "services_resume_rewrite_service_resumerewriteservice_prepare_prompts",
+      "services_resume_rewrite_service_resumerewriteservice_rewrite_resume"
+    ],
+    "4": [
+      "agents_agent_adapter_py_basemodel",
+      "api_resumes",
+      "api_resumes_create_resume",
+      "api_resumes_match_resume",
+      "api_resumes_py_resumematchresult",
+      "api_resumes_py_session",
+      "api_resumes_rationale_35",
+      "models_analysis_models_resumematch",
+      "request",
+      "resumecreateresponse",
+      "resumematchrequest",
+      "schemas_resume_schema",
+      "schemas_resume_schema_resumecreaterequest",
+      "schemas_resume_schema_resumecreateresponse",
+      "schemas_resume_schema_resumematchrequest",
+      "schemas_resume_schema_resumematchresult",
+      "services_resume_service",
+      "services_resume_service_py_resumematchresult",
+      "services_resume_service_py_session",
+      "services_resume_service_rationale_43",
+      "services_resume_service_resumeservice",
+      "services_resume_service_resumeservice_match_resume",
+      "services_resume_service_resumeservice_prepare_prompts"
+    ],
+    "5": [
+      "agents_gap_analysis_agent_gapanalysisagent_init",
+      "agents_gap_analysis_agent_gapanalysisagent_run",
+      "agents_gap_analysis_agent_py_basellmclient",
+      "agents_gap_analysis_agent_py_gapanalysisresult",
+      "agents_gap_analysis_agent_py_session",
+      "basemodel",
+      "models_analysis_models_gapanalysis",
+      "schemas_gap_analysis_schema",
+      "schemas_gap_analysis_schema_gapanalysisresult",
+      "schemas_gap_analysis_schema_gapitem",
+      "schemas_interview_research_schema",
+      "schemas_interview_research_schema_interviewquestion",
+      "schemas_resume_rewrite_schema",
+      "schemas_resume_rewrite_schema_resumevariant",
+      "services_gap_analysis_service",
+      "services_gap_analysis_service_extract_json",
+      "services_gap_analysis_service_gapanalysisservice",
+      "services_gap_analysis_service_gapanalysisservice_analyze_gaps",
+      "services_gap_analysis_service_gapanalysisservice_prepare_prompts",
+      "services_gap_analysis_service_py_basellmclient",
+      "services_gap_analysis_service_py_gapanalysisresult",
+      "services_gap_analysis_service_py_session"
+    ],
+    "6": [
+      "api_jobs",
+      "api_jobs_analyze_job",
+      "api_jobs_ingest_job",
+      "api_jobs_py_session",
+      "api_jobs_rationale_57",
+      "backgroundtasks",
+      "jobingestrequest",
+      "llm_clients",
+      "llm_clients_mockllmclient",
+      "llm_clients_mockllmclient_generate",
+      "llm_clients_mockllmclient_init",
+      "llm_clients_nvidianimclient",
+      "llm_clients_nvidianimclient_generate",
+      "llm_clients_nvidianimclient_init",
+      "llm_clients_rationale_28",
+      "llm_clients_rationale_59",
+      "llm_nim_schema",
+      "llm_nim_schema_nimchatrequest",
+      "llm_nim_schema_nimmessage",
+      "schemas_job_schema",
+      "schemas_job_schema_jobingestrequest",
+      "schemas_job_schema_jobingestresponse"
+    ],
+    "7": [
+      "plan_application_package",
+      "plan_gap_analysis_agent",
+      "plan_gap_analysis_result",
+      "plan_interview_research_agent",
+      "plan_interview_research_result",
+      "plan_jd_analyzer_agent",
+      "plan_job_analysis_result",
+      "plan_resume_match_result",
+      "plan_resume_matcher_agent",
+      "plan_resume_rewrite_agent",
+      "plan_resume_rewrite_result",
+      "system_prompt_jd_analyzer",
+      "system_prompt_resume_matcher",
+      "user_prompt_jd_analyzer",
+      "user_prompt_resume_matcher"
+    ],
+    "8": [
+      "db_database",
+      "db_database_base",
+      "db_database_get_db",
+      "declarativebase",
+      "models_models",
+      "models_models_job",
+      "models_models_jobrawpayload",
+      "models_models_jobskill",
+      "models_models_resume",
+      "services_job_service",
+      "services_job_service_jobservice",
+      "services_job_service_jobservice_ingest_job",
+      "services_resume_service_resumeservice_create_resume"
+    ],
+    "9": [
+      "gap_analyzer_system_prompt",
+      "gap_analyzer_user_prompt_template",
+      "resume_rewriter_system_prompt",
+      "resume_rewriter_user_prompt_template",
+      "schema_gap_analysis_result",
+      "schema_resume_rewrite_result"
+    ],
+    "10": [
+      "interview_researcher_system_prompt",
+      "interview_researcher_user_prompt_template",
+      "schema_interview_research_result"
+    ],
+    "11": [
+      "resume_analyzer_system_prompt",
+      "resume_analyzer_user_prompt_template",
+      "schema_resume_analysis_result"
+    ],
+    "12": [
+      "copilot_instructions_graphify"
+    ],
+    "13": [
+      "main"
+    ],
+    "14": [
+      "plan_application_runs_table"
+    ],
+    "15": [
+      "plan_gap_analyses_table"
+    ],
+    "16": [
+      "plan_generated_content_table"
+    ],
+    "17": [
+      "requirements_ag_ui_protocol"
+    ],
+    "18": [
+      "requirements_fastmcp"
+    ],
+    "19": [
+      "requirements_logfire"
+    ],
+    "20": [
+      "requirements_pydantic_ai"
+    ]
+  },
+  "cohesion": {
+    "0": 0.09725158562367865,
+    "1": 0.09682539682539683,
+    "2": 0.13793103448275862,
+    "3": 0.15942028985507245,
+    "4": 0.22924901185770752,
+    "5": 0.15151515151515152,
+    "6": 0.16883116883116883,
+    "7": 0.17142857142857143,
+    "8": 0.2564102564102564,
+    "9": 0.3333333333333333,
+    "10": 0.6666666666666666,
+    "11": 0.6666666666666666,
+    "12": 1.0,
+    "13": 1.0,
+    "14": 1.0,
+    "15": 1.0,
+    "16": 1.0,
+    "17": 1.0,
+    "18": 1.0,
+    "19": 1.0,
+    "20": 1.0
+  },
+  "gods": [
+    {
+      "id": "models_analysis_models_jobanalysis",
+      "label": "JobAnalysis",
+      "degree": 27
+    },
+    {
+      "id": "llm_clients_basellmclient",
+      "label": "BaseLLMClient",
+      "degree": 24
+    },
+    {
+      "id": "services_orchestrator_service_orchestratorservice",
+      "label": "OrchestratorService",
+      "degree": 19
+    },
+    {
+      "id": "models_analysis_models_resumematch",
+      "label": "ResumeMatch",
+      "degree": 17
+    },
+    {
+      "id": "services_resume_service_resumeservice",
+      "label": "ResumeService",
+      "degree": 16
+    },
+    {
+      "id": "agents_agent_adapter_agentadapter",
+      "label": "AgentAdapter",
+      "degree": 15
+    },
+    {
+      "id": "models_analysis_models_gapanalysis",
+      "label": "GapAnalysis",
+      "degree": 15
+    },
+    {
+      "id": "schemas_resume_schema_resumematchresult",
+      "label": "ResumeMatchResult",
+      "degree": 14
+    },
+    {
+      "id": "services_job_analyzer_service_jobanalyzerservice",
+      "label": "JobAnalyzerService",
+      "degree": 14
+    },
+    {
+      "id": "agents_interview_research_agent_interviewresearchagent",
+      "label": "InterviewResearchAgent",
+      "degree": 14
+    }
+  ],
+  "surprises": [
+    {
+      "source": "BaseLLMClient",
+      "target": "BaseLLMClient",
+      "source_files": [
+        "agents/agent_adapter.py",
+        "llm/clients.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; peripheral node `BaseLLMClient` unexpectedly reaches hub `BaseLLMClient`"
+    },
+    {
+      "source": "BaseModel",
+      "target": "BaseLLMClient",
+      "source_files": [
+        "agents/agent_adapter.py",
+        "llm/clients.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "ResumeMatcherAgent",
+      "target": "ResumeMatchResult",
+      "source_files": [
+        "agents/resume_matcher_agent.py",
+        "schemas/resume_schema.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "ResumeMatcherAgent",
+      "target": "ResumeService",
+      "source_files": [
+        "agents/resume_matcher_agent.py",
+        "services/resume_service.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "BaseLLMClient",
+      "target": "ResumeMatchResult",
+      "source_files": [
+        "agents/resume_matcher_agent.py",
+        "schemas/resume_schema.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "uses",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
+    }
+  ],
+  "tokens": {
+    "input": 4595,
+    "output": 2034
+  }
+}

@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug FastAPI",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "app.main:app",
+                "--reload",
+                "--host", "0.0.0.0",
+                "--port", "8000"
+            ],
+            "cwd": "${workspaceFolder}/backend",
+            "python": "${workspaceFolder}/backend/app/.venv/Scripts/python.exe",
+            "envFile": "${workspaceFolder}/backend/app/.env",
+            "env": {
+                "LOG_LEVEL": "DEBUG"
+            },
+            "jinja2": true,
+            "justMyCode": false
+        }
+    ]
+}

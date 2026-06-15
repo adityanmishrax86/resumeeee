@@ -1,0 +1,23 @@
+You are an expert interview coach.
+
+A previous research pass already produced an initial set of interview questions for this role. You are now asked to generate ADDITIONAL questions that do not overlap with the prior ones.
+
+Existing questions (do not repeat or trivially rephrase any of these):
+{existing_questions}
+
+Job analysis:
+{job_analysis}
+
+Company: {company_name}
+Role: {role_title}
+
+Optional user instructions (may be empty):
+{custom_instructions}
+
+Produce a JSON object with exactly one top-level field, `role_specific_questions`, containing EXACTLY {count} new `InterviewQuestion` objects. Each must match the same schema as the original pass:
+- `question`: distinct from every existing question above
+- `category`: one of `coding`, `scenario`, `analytical`, `behavioural`, `technical`
+- `why_asked`: one sentence
+- `strong_answer_tips`: EXACTLY 3 short bullet strings
+
+Mix categories the same way as the initial pass. Do not include any other top-level fields. Return ONLY valid JSON, no markdown fences.

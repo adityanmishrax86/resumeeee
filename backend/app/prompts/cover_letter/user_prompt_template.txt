@@ -1,0 +1,13 @@
+Resume (markdown):
+{resume_md}
+
+Job analysis (JSON):
+{job_analysis}
+
+Gap analysis (JSON, optional):
+{gap_analysis}
+
+Custom instructions from the user (optional, may be empty):
+{custom_instructions}
+
+Using the resume and analyses above, produce a CoverLetterResult JSON object with exactly three variants (`professional`, `story`, `startup`) as specified in the system prompt.

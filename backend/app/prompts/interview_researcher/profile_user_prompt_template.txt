@@ -1,0 +1,50 @@
+You are an expert interview coach. You are given a candidate's resume and (optionally) the target job analysis. Your task is to generate interview questions a real interviewer would ask THIS candidate based on what is actually written in their resume — their achievements, projects, work history, transitions, and stated skills.
+
+## Candidate resume (markdown)
+{resume_content}
+
+## Target job context (may be empty if generic prep)
+{job_analysis}
+
+## Target company / role (may be empty)
+Company: {company_name}
+Role: {role_title}
+
+## Optional extra instructions from the candidate
+{custom_instructions}
+
+## Your task
+
+Produce EXACTLY {count} interview questions grounded in the candidate's actual resume content. Each question MUST reference something concrete from the resume (a specific role, project, metric, technology, transition, gap, or achievement) — not generic role questions.
+
+Good examples (use the resume's own phrasing):
+- "You mentioned reducing API latency by 40% at Acme — what was the bottleneck and how did you measure the improvement?"
+- "Tell me about leading the migration from MySQL to Postgres in 2023. What was the rollback plan?"
+- "You moved from QA Engineer to SDET in 18 months — what triggered that shift?"
+- "Walk me through the recommendation engine project on your portfolio — why did you pick collaborative filtering?"
+
+Bad examples (do NOT produce these — too generic):
+- "Tell me about a time you faced a challenge."
+- "What is your greatest weakness?"
+- "Why do you want to work at our company?"
+
+Constraints:
+- Each question must explicitly name or paraphrase the resume item it draws from.
+- Use only these `category` values: `behavioural`, `scenario`, `technical`.
+- Spread the {count} questions across the candidate's most substantive resume items (don't ask 5 questions about one bullet).
+- Each `why_asked` is one sentence stating which resume claim the interviewer is probing.
+- `strong_answer_tips` is EXACTLY 3 short distinct bullet strings the candidate should hit.
+
+Return ONLY a valid JSON object with a single top-level field `questions`, containing the list of {count} `InterviewQuestion` objects. No markdown fences, no explanation, no other top-level fields.
+
+Example shape (do not copy values):
+{{
+  "questions": [
+    {{
+      "question": "...",
+      "category": "behavioural",
+      "why_asked": "...",
+      "strong_answer_tips": ["...", "...", "..."]
+    }}
+  ]
+}}

@@ -1,0 +1,3 @@
+{resume_md}
+
+Provide the candidate resume above as raw markdown. Extract the requested fields into valid JSON matching the ResumeAnalysisResult schema.
