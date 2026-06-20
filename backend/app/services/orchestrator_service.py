@@ -1,16 +1,18 @@
 """
-OrchestratorService — full 5-agent pipeline.
+OrchestratorService — full 7-agent pipeline.
 
-Execution order (from plan.md):
-  1. JD Analyzer      (required)
-  2. Resume Analyzer  (required, runs in parallel with 1)
+Execution order:
+  1. JD Analyzer      (required)  ─┐  parallel
+  2. Resume Analyzer  (required)  ─┘
   3. Resume Matcher   (depends on 1 + 2)
   4. Gap Analyzer     (depends on 3)
-  5. Resume Rewriter  (depends on 4)
-  6. Interview Research (fires at step 1, collected at step 5)
+  5. Resume Rewriter  ─┐
+     Cover Letter     ─┤  parallel (all depend on 4)
+     Interview Prep   ─┘
 
 Steps 1 and 2 run concurrently (asyncio.gather).
-Steps 3, 4, 5 are strictly sequential.
+Step 3 is sequential, step 4 is sequential.
+Steps 5 (rewrite + cover letter + interview) run concurrently.
 
 Run state is persisted in `application_runs` so the status endpoint can report
 `failed`/`complete` reliably and a single agent can be retried without rerunning
@@ -323,7 +325,7 @@ class OrchestratorService:
 
         await self._wrap_agent(db, run, AGENT_RESUME_MATCHER, _resume_match)
 
-        # ── Steps 4 & 6 (parallel) ───────────────────────────────────────────
+        # ── Step 4: Gap Analysis (sequential) ────────────────────────────────
         gap_analysis_id: Optional[str] = None
 
         async def _gap_analysis():
@@ -359,6 +361,75 @@ class OrchestratorService:
             )
             gap_analysis_id = str(row.id) if row else None
             response.gap_analysis_id = gap_analysis_id
+
+        await self._wrap_agent(db, run, AGENT_GAP_ANALYSIS, _gap_analysis)
+
+        # ── Step 5: Resume Rewrite ‖ Cover Letter ‖ Interview Research ───────
+        # All three depend on gap_analysis being complete. They fire in
+        # parallel to minimise wall-clock time.
+
+        async def _resume_rewrite():
+            existing = (
+                db.query(ResumeRewrite)
+                .filter(
+                    ResumeRewrite.resume_id == resume_id,
+                    ResumeRewrite.gap_analysis_id == gap_analysis_id,
+                )
+                .order_by(ResumeRewrite.created_at.desc())
+                .first()
+            )
+            if existing and not _agent_failed_previously(run, AGENT_RESUME_REWRITE):
+                response.resume_rewrite_id = str(existing.id)
+                _set_agent_status(run, AGENT_RESUME_REWRITE, "skipped")
+                return
+            agent = ResumeRewriteAgent(self.resume_rewrite_client)
+            await agent.run(
+                db=db,
+                resume_id=resume_id,
+                gap_analysis_id=gap_analysis_id,
+                job_analysis_id=response.job_analysis_id,
+            )
+            row = (
+                db.query(ResumeRewrite)
+                .filter(ResumeRewrite.resume_id == resume_id)
+                .order_by(ResumeRewrite.created_at.desc())
+                .first()
+            )
+            response.resume_rewrite_id = str(row.id) if row else None
+
+        async def _cover_letter():
+            existing = (
+                db.query(CoverLetter)
+                .filter(
+                    CoverLetter.resume_id == resume_id,
+                    CoverLetter.job_analysis_id == response.job_analysis_id,
+                )
+                .order_by(CoverLetter.created_at.desc())
+                .first()
+            )
+            if existing and not _agent_failed_previously(run, AGENT_COVER_LETTER):
+                response.cover_letter_id = str(existing.id)
+                response.cover_letter = existing.result if isinstance(existing.result, dict) else None
+                _set_agent_status(run, AGENT_COVER_LETTER, "skipped")
+                return
+            agent = CoverLetterAgent(self.resume_rewrite_client)
+            result = await agent.run(
+                db=db,
+                resume_id=resume_id,
+                job_analysis_id=response.job_analysis_id,
+                gap_analysis_id=gap_analysis_id,
+            )
+            row = (
+                db.query(CoverLetter)
+                .filter(
+                    CoverLetter.resume_id == resume_id,
+                    CoverLetter.job_analysis_id == response.job_analysis_id,
+                )
+                .order_by(CoverLetter.created_at.desc())
+                .first()
+            )
+            response.cover_letter_id = str(row.id) if row else None
+            response.cover_letter = result.model_dump() if result is not None else None
 
         async def _interview_research():
             if skip_interview_research:
@@ -401,81 +472,10 @@ class OrchestratorService:
             response.interview_research_id = str(row.id) if row else None
 
         await asyncio.gather(
-            self._wrap_agent(db, run, AGENT_GAP_ANALYSIS, _gap_analysis),
-            # Interview research is non-blocking — its failure is recorded
-            # but does not stop the chain.
+            self._wrap_agent(db, run, AGENT_RESUME_REWRITE, _resume_rewrite),
+            self._wrap_agent(db, run, AGENT_COVER_LETTER, _cover_letter, non_blocking=True),
             self._wrap_agent(db, run, AGENT_INTERVIEW_RESEARCH, _interview_research, non_blocking=True),
         )
-
-        # ── Step 5: Resume Rewrite ───────────────────────────────────────────
-        async def _resume_rewrite():
-            existing = (
-                db.query(ResumeRewrite)
-                .filter(
-                    ResumeRewrite.resume_id == resume_id,
-                    ResumeRewrite.gap_analysis_id == gap_analysis_id,
-                )
-                .order_by(ResumeRewrite.created_at.desc())
-                .first()
-            )
-            if existing and not _agent_failed_previously(run, AGENT_RESUME_REWRITE):
-                response.resume_rewrite_id = str(existing.id)
-                _set_agent_status(run, AGENT_RESUME_REWRITE, "skipped")
-                return
-            agent = ResumeRewriteAgent(self.resume_rewrite_client)
-            await agent.run(
-                db=db,
-                resume_id=resume_id,
-                gap_analysis_id=gap_analysis_id,
-                job_analysis_id=response.job_analysis_id,
-            )
-            row = (
-                db.query(ResumeRewrite)
-                .filter(ResumeRewrite.resume_id == resume_id)
-                .order_by(ResumeRewrite.created_at.desc())
-                .first()
-            )
-            response.resume_rewrite_id = str(row.id) if row else None
-
-        await self._wrap_agent(db, run, AGENT_RESUME_REWRITE, _resume_rewrite)
-
-        # ── Step 7: Cover Letter (non-blocking, depends on gap_analysis) ─────
-        async def _cover_letter():
-            gap_analysis_id = response.gap_analysis_id
-            existing = (
-                db.query(CoverLetter)
-                .filter(
-                    CoverLetter.resume_id == resume_id,
-                    CoverLetter.job_analysis_id == response.job_analysis_id,
-                )
-                .order_by(CoverLetter.created_at.desc())
-                .first()
-            )
-            if existing and not _agent_failed_previously(run, AGENT_COVER_LETTER):
-                response.cover_letter_id = str(existing.id)
-                response.cover_letter = existing.result if isinstance(existing.result, dict) else None
-                _set_agent_status(run, AGENT_COVER_LETTER, "skipped")
-                return
-            agent = CoverLetterAgent(self.resume_rewrite_client)
-            result = await agent.run(
-                db=db,
-                resume_id=resume_id,
-                job_analysis_id=response.job_analysis_id,
-                gap_analysis_id=gap_analysis_id,
-            )
-            row = (
-                db.query(CoverLetter)
-                .filter(
-                    CoverLetter.resume_id == resume_id,
-                    CoverLetter.job_analysis_id == response.job_analysis_id,
-                )
-                .order_by(CoverLetter.created_at.desc())
-                .first()
-            )
-            response.cover_letter_id = str(row.id) if row else None
-            response.cover_letter = result.model_dump() if result is not None else None
-
-        await self._wrap_agent(db, run, AGENT_COVER_LETTER, _cover_letter, non_blocking=True)
 
     # ── per-agent wrapper: span, status update, failure classification ──────
     async def _wrap_agent(

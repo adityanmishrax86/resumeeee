@@ -1,4 +1,4 @@
--- Migration 0008: cover_letters — stores 3-variant cover-letter generations.
+-- Migration: create cover_letters table
 
 CREATE TABLE IF NOT EXISTS cover_letters (
     id UUID PRIMARY KEY,

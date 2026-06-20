@@ -6,6 +6,7 @@ from app.models.analysis_models import (
     GapAnalysis,
     ResumeRewrite,
     ApplicationRun,
+    CoverLetter,
 )
 from app.schemas.resume_schema import ResumeMatchResult
 from pathlib import Path
@@ -64,6 +65,7 @@ class ResumeService:
         if ga_ids:
             db.query(ResumeRewrite).filter(ResumeRewrite.gap_analysis_id.in_(ga_ids)).delete(synchronize_session=False)
             db.query(GapAnalysis).filter(GapAnalysis.id.in_(ga_ids)).delete(synchronize_session=False)
+        db.query(CoverLetter).filter(CoverLetter.resume_id == resume_id).delete(synchronize_session=False)
         db.query(ResumeRewrite).filter(ResumeRewrite.resume_id == resume_id).delete(synchronize_session=False)
         db.query(ResumeMatch).filter(ResumeMatch.resume_id == resume_id).delete(synchronize_session=False)
         db.query(ResumeAnalysis).filter(ResumeAnalysis.resume_id == resume_id).delete(synchronize_session=False)
@@ -143,6 +145,7 @@ class ResumeService:
             "overall_score": int(raw.get("overall_score") or 0),
             "skills_match_score": int(raw.get("skills_match_score") or 0),
             "experience_match_score": int(raw.get("experience_match_score") or 0),
+            "domain_score": int(raw.get("domain_score") or 0),
             "matched_required_skills": ensure_list(raw.get("matched_required_skills")),
             "missing_required_skills": ensure_list(raw.get("missing_required_skills")),
             "matched_preferred_skills": ensure_list(raw.get("matched_preferred_skills")),

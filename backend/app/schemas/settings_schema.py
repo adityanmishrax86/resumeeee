@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 SettingsSource = Literal["db", "env", "none"]
-ProviderName = Literal["google", "nvidia", "mock"]
+ProviderName = Literal["google", "openai", "groq", "mock"]
 
 
 class SettingsResponse(BaseModel):

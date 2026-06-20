@@ -1049,3 +1049,420 @@ option {
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   Pipeline Flow — DAG-style agent visualization
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.pipeline-flow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 1.5rem 0.5rem;
+  position: relative;
+}
+
+/* ── Row of agent nodes ─────────────────────────────────────────────────────── */
+
+.pipeline-row {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 720px;
+}
+
+.pipeline-row--parallel {
+  gap: 1.25rem;
+}
+
+/* ── Individual agent node ──────────────────────────────────────────────────── */
+
+.pipeline-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 1rem 1.2rem 0.75rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  min-width: 110px;
+  max-width: 160px;
+  flex: 1;
+  cursor: default;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pipeline-node:hover {
+  background: rgba(255, 255, 255, 0.07);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* Icon */
+.pipeline-node__icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 6px;
+  transition: all 0.3s ease;
+}
+
+.pipeline-node__icon svg {
+  width: 100%;
+  height: 100%;
+  color: #94a3b8;
+  transition: color 0.3s ease;
+}
+
+/* Label */
+.pipeline-node__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  text-align: center;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}
+
+/* Status text */
+.pipeline-node__status {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  transition: color 0.3s ease;
+}
+
+/* Status badge (corner indicator) */
+.pipeline-node__badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  z-index: 2;
+  transition: all 0.3s ease;
+}
+
+.pipeline-node__badge--pending {
+  background: rgba(100, 116, 139, 0.3);
+  color: #94a3b8;
+  border: 1px solid rgba(100, 116, 139, 0.4);
+  font-size: 0.55rem;
+}
+
+.pipeline-node__badge--running {
+  background: rgba(99, 102, 241, 0.7);
+  color: #fff;
+  border: 1px solid rgba(129, 140, 248, 0.6);
+  animation: badge-pulse 1.5s ease-in-out infinite;
+}
+
+.pipeline-node__badge--complete {
+  background: rgba(16, 185, 129, 0.8);
+  color: #fff;
+  border: 1px solid rgba(52, 211, 153, 0.6);
+}
+
+.pipeline-node__badge--failed {
+  background: rgba(239, 68, 68, 0.8);
+  color: #fff;
+  border: 1px solid rgba(248, 113, 113, 0.6);
+}
+
+.pipeline-node__badge--skipped {
+  background: rgba(100, 116, 139, 0.5);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+/* ── Status-specific node styles ────────────────────────────────────────────── */
+
+/* Pending — dim */
+.pipeline-node--pending {
+  opacity: 0.45;
+}
+
+/* Running — pulsing glow */
+.pipeline-node--running {
+  opacity: 1;
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.15), 0 0 40px rgba(99, 102, 241, 0.05);
+  animation: node-glow 2s ease-in-out infinite;
+}
+
+.pipeline-node--running .pipeline-node__icon {
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.pipeline-node--running .pipeline-node__icon svg {
+  color: #818cf8;
+}
+
+.pipeline-node--running .pipeline-node__status {
+  color: #818cf8;
+}
+
+/* Complete — green */
+.pipeline-node--complete {
+  opacity: 1;
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.06);
+}
+
+.pipeline-node--complete .pipeline-node__icon {
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.pipeline-node--complete .pipeline-node__icon svg {
+  color: #34d399;
+}
+
+.pipeline-node--complete .pipeline-node__label {
+  color: #6ee7b7;
+}
+
+.pipeline-node--complete .pipeline-node__status {
+  color: #34d399;
+}
+
+/* Failed — red */
+.pipeline-node--failed {
+  opacity: 1;
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.pipeline-node--failed .pipeline-node__icon {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.pipeline-node--failed .pipeline-node__icon svg {
+  color: #f87171;
+}
+
+.pipeline-node--failed .pipeline-node__label {
+  color: #fca5a5;
+}
+
+.pipeline-node--failed .pipeline-node__status {
+  color: #f87171;
+}
+
+/* Skipped — subtle */
+.pipeline-node--skipped {
+  opacity: 0.65;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+.pipeline-node--skipped .pipeline-node__icon svg {
+  color: #94a3b8;
+}
+
+.pipeline-node--skipped .pipeline-node__status {
+  color: #94a3b8;
+}
+
+/* ── Tooltip ────────────────────────────────────────────────────────────────── */
+
+.pipeline-tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(6px);
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+  min-width: 200px;
+  max-width: 280px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 20;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.pipeline-node:hover .pipeline-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+.pipeline-tooltip__title {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #f1f5f9;
+  margin-bottom: 0.25rem;
+}
+
+.pipeline-tooltip__desc {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  line-height: 1.4;
+  margin-bottom: 0.4rem;
+}
+
+.pipeline-tooltip__status {
+  font-size: 0.75rem;
+  color: #cbd5e1;
+}
+
+.pipeline-tooltip__status strong {
+  color: #e2e8f0;
+}
+
+.pipeline-tooltip__error {
+  font-size: 0.7rem;
+  color: #fca5a5;
+  margin-top: 0.35rem;
+  padding: 0.3rem 0.5rem;
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 6px;
+  word-break: break-word;
+}
+
+.pipeline-tooltip__time {
+  font-size: 0.65rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+}
+
+/* ── Connectors (SVG lines between rows) ────────────────────────────────────── */
+
+.pipeline-connector {
+  width: 100%;
+  max-width: 720px;
+  height: 28px;
+  display: flex;
+  justify-content: center;
+  overflow: visible;
+}
+
+.pipeline-conn-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.pipeline-conn-line {
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 1.5;
+  fill: none;
+  transition: stroke 0.3s ease;
+}
+
+/* Animate connector when downstream is running */
+.pipeline-connector--active .pipeline-conn-line {
+  stroke: rgba(99, 102, 241, 0.5);
+  stroke-dasharray: 6 4;
+  animation: conn-dash 1s linear infinite;
+}
+
+/* Connector complete */
+.pipeline-connector--done .pipeline-conn-line {
+  stroke: rgba(16, 185, 129, 0.4);
+}
+
+/* ── Elapsed timer ──────────────────────────────────────────────────────────── */
+
+.pipeline-elapsed {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-top: 1rem;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.pipeline-elapsed::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #818cf8;
+  animation: elapsed-dot 1.5s ease-in-out infinite;
+}
+
+/* ── Animations ─────────────────────────────────────────────────────────────── */
+
+@keyframes node-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.12), 0 0 30px rgba(99, 102, 241, 0.04);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(99, 102, 241, 0.25), 0 0 50px rgba(99, 102, 241, 0.08);
+  }
+}
+
+@keyframes badge-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+  }
+  50% {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 6px rgba(99, 102, 241, 0);
+  }
+}
+
+@keyframes conn-dash {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+@keyframes elapsed-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .pipeline-row {
+    gap: 0.6rem;
+  }
+
+  .pipeline-node {
+    min-width: 80px;
+    max-width: 110px;
+    padding: 0.7rem 0.6rem 0.55rem;
+  }
+
+  .pipeline-node__icon {
+    width: 28px;
+    height: 28px;
+    padding: 4px;
+  }
+
+  .pipeline-node__label {
+    font-size: 0.65rem;
+  }
+
+  .pipeline-node__status {
+    font-size: 0.55rem;
+  }
+
+  .pipeline-tooltip {
+    min-width: 160px;
+    max-width: 220px;
+    padding: 0.55rem 0.7rem;
+  }
+}

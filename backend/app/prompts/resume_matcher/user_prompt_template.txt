@@ -1,7 +1,7 @@
-Please match the Resume Details with the Job and share you analysis
+Match the resume below against the job analysis and return your assessment as a single JSON object matching the schema in the system prompt.
 
-# Resume Data
+# Resume
 {resume_Data}
 
-# Job Analysis Data
+# Job Analysis
 {job_analysis_data}

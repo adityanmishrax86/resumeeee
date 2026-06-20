@@ -10,6 +10,7 @@ from app.models.analysis_models import (
     ResumeRewrite,
     InterviewResearch,
     ApplicationRun,
+    CoverLetter,
 )
 
 
@@ -78,6 +79,10 @@ class JobService:
         if ga_ids:
             db.query(ResumeRewrite).filter(ResumeRewrite.gap_analysis_id.in_(ga_ids)).delete(synchronize_session=False)
         if ja_ids:
+            db.query(CoverLetter).filter(
+                (CoverLetter.job_analysis_id.in_(ja_ids)) |
+                (CoverLetter.gap_analysis_id.in_(ga_ids) if ga_ids else False)
+            ).delete(synchronize_session=False)
             db.query(ResumeRewrite).filter(ResumeRewrite.job_analysis_id.in_(ja_ids)).delete(synchronize_session=False)
             db.query(GapAnalysis).filter(GapAnalysis.job_analysis_id.in_(ja_ids)).delete(synchronize_session=False)
             db.query(ResumeMatch).filter(ResumeMatch.job_analysis_id.in_(ja_ids)).delete(synchronize_session=False)

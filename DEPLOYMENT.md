@@ -108,7 +108,7 @@ Apply them in order against your target DB:
 cd backend/app/db/migrations
 
 # Run on a fresh database
-for f in 0001 0002 0003 0004 0005 0006 0007 0008 0009; do
+for f in 0001 0002 0003 0004 0005 0006 0007 0008 0009 0010; do
   psql "$DATABASE_URL_PSQL" -v ON_ERROR_STOP=1 -f ${f}_*.sql
 done
 ```
@@ -236,7 +236,7 @@ After the first start, run the SQL migrations once:
 
 ```bash
 docker compose exec db psql -U jobcopilot -d jobcopilot \
-  -f /docker-entrypoint-initdb.d/0001_create_job_analysis.sql   # repeat for 0002–0009
+  -f /docker-entrypoint-initdb.d/0001_create_app_settings.sql   # repeat for 0002–0010
 ```
 
 (or mount `backend/app/db/migrations/` into the `db` container's `/docker-entrypoint-initdb.d/` so they run on first boot).

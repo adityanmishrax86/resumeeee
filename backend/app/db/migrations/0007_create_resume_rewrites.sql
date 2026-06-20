@@ -1,5 +1,4 @@
 -- Migration: create resume_rewrites table
--- Apply with your migration tooling (Alembic recommended)
 
 CREATE TABLE IF NOT EXISTS resume_rewrites (
     id UUID PRIMARY KEY,

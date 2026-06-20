@@ -386,9 +386,10 @@ class InterviewResearchService:
         """Yield text chunks of a detailed answer for a single interview question.
 
         Provider routing mirrors InterviewResearchAgent:
-          - LLM_PROVIDER=google → google.genai streaming
-          - LLM_PROVIDER=nvidia → NvidiaNIMClient SSE
-          - anything else → mock token stream
+          - LLM_PROVIDER=google  → google.genai streaming
+          - LLM_PROVIDER=openai  → OpenAI streaming (AsyncOpenAI)
+          - LLM_PROVIDER=groq    → Groq streaming (AsyncGroq)
+          - anything else        → mock token stream
         """
         job_json: dict = {}
         if job_analysis_id:
@@ -432,8 +433,11 @@ class InterviewResearchService:
         if provider == "google":
             async for chunk in InterviewResearchService._stream_google(system_prompt, user_prompt):
                 yield chunk
-        elif provider == "nvidia":
-            async for chunk in InterviewResearchService._stream_nvidia(system_prompt, user_prompt):
+        elif provider == "openai":
+            async for chunk in InterviewResearchService._stream_openai(system_prompt, user_prompt):
+                yield chunk
+        elif provider == "groq":
+            async for chunk in InterviewResearchService._stream_groq(system_prompt, user_prompt):
                 yield chunk
         else:
             async for chunk in InterviewResearchService._stream_mock(question):
@@ -487,45 +491,62 @@ class InterviewResearchService:
                 yield text
 
     @staticmethod
-    async def _stream_nvidia(system_prompt: str, user_prompt: str) -> AsyncIterator[str]:
-        from app.llm.clients import NvidiaNIMClient
+    async def _stream_openai(system_prompt: str, user_prompt: str) -> AsyncIterator[str]:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY is not set")
 
-        client = NvidiaNIMClient()
-        loop = asyncio.get_event_loop()
+        model = os.getenv("OPENAI_LLM_MODEL", "gpt-4o-mini")
 
-        def _start():
-            return client.generate(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                stream=True,
-            )
+        try:
+            from openai import AsyncOpenAI
+        except Exception as exc:
+            raise RuntimeError(
+                "openai package not installed; cannot stream from OpenAI"
+            ) from exc
 
-        gen = await loop.run_in_executor(None, _start)
-        it = iter(gen)
+        client = AsyncOpenAI(api_key=api_key)
+        stream = await client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            stream=True,
+        )
+        async for chunk in stream:
+            text = (chunk.choices[0].delta.content or "") if chunk.choices else ""
+            if text:
+                yield text
 
-        def _next():
-            try:
-                return next(it)
-            except StopIteration:
-                return None
+    @staticmethod
+    async def _stream_groq(system_prompt: str, user_prompt: str) -> AsyncIterator[str]:
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY is not set")
 
-        while True:
-            raw = await loop.run_in_executor(None, _next)
-            if raw is None or raw == "[DONE]":
-                break
-            # NIM streams JSON chunks in the OpenAI delta shape.
-            try:
-                payload = json.loads(raw)
-                choices = payload.get("choices") or []
-                if choices:
-                    delta = choices[0].get("delta") or {}
-                    text = delta.get("content") or ""
-                    if text:
-                        yield text
-            except Exception:
-                # If it's not JSON, treat as raw text fallback.
-                if raw:
-                    yield raw
+        model = os.getenv("GROQ_LLM_MODEL", "llama-3.3-70b-versatile")
+
+        try:
+            from groq import AsyncGroq
+        except Exception as exc:
+            raise RuntimeError(
+                "groq package not installed; cannot stream from Groq"
+            ) from exc
+
+        client = AsyncGroq(api_key=api_key)
+        stream = await client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            stream=True,
+        )
+        async for chunk in stream:
+            text = (chunk.choices[0].delta.content or "") if chunk.choices else ""
+            if text:
+                yield text
 
     @staticmethod
     async def _stream_mock(question: str) -> AsyncIterator[str]:
