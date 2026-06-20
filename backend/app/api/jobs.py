@@ -1,6 +1,5 @@
 from fastapi import APIRouter
 from fastapi import Depends, BackgroundTasks, HTTPException
-from fastapi.responses import StreamingResponse
 
 from sqlalchemy.orm import Session
 
@@ -20,7 +19,6 @@ from app.models.models import Job
 from app.models.analysis_models import JobAnalysis
 from app.services.job_service import JobService
 from app.services.job_analyzer_service import JobAnalyzerService
-from app.llm.clients import MockLLMClient, NvidiaNIMClient
 from app.agents import get_job_analyzer_agent
 
 router = APIRouter(
@@ -107,41 +105,8 @@ async def analyze_job(
     logging.info("LLM provider selected: %s", llm_provider)
     agent = get_job_analyzer_agent()
 
-    if stream and background:
-        raise HTTPException(status_code=400, detail="stream cannot be used with background=true")
-
     if stream:
-        # Streaming is only supported for providers that expose SSE (NVIDIA NIM).
-        if llm_provider in ("nim", "nvidia", "nvidia-nim"):
-            try:
-                client = NvidiaNIMClient()
-            except Exception:
-                logging.exception("Failed to initialize NvidiaNIMClient for streaming")
-                raise HTTPException(status_code=500, detail="streaming_init_failed")
-
-            try:
-                system_prompt, user_prompt = JobAnalyzerService.prepare_prompts(db, job_id)
-            except ValueError as ve:
-                raise HTTPException(status_code=404, detail=str(ve))
-
-            gen = client.generate(system_prompt=system_prompt, user_prompt=user_prompt, stream=True)
-
-            def sse_wrapper():
-                if isinstance(gen, str):
-                    yield f"data: {gen}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
-                try:
-                    for chunk in gen:
-                        if chunk is None:
-                            continue
-                        yield f"data: {chunk}\n\n"
-                except GeneratorExit:
-                    return
-
-            return StreamingResponse(sse_wrapper(), media_type="text/event-stream")
-
-        raise HTTPException(status_code=400, detail="streaming not supported for selected LLM provider")
+        raise HTTPException(status_code=400, detail="streaming_not_supported")
 
     if background:
         # Run in background using a fresh DB session and the async agent

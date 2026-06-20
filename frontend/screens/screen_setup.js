@@ -12,11 +12,18 @@ const PROVIDER_PRESETS = {
     keyHelp: 'Stored encrypted; exported to GOOGLE_API_KEY at runtime.',
     requiresKey: true,
   },
-  nvidia: {
-    label: 'NVIDIA NIM',
-    modelPlaceholder: 'google/gemma-4-31b-it',
-    keyLabel: 'NVIDIA API key',
-    keyHelp: 'Stored encrypted; exported to NVIDIA_API_KEY at runtime.',
+  openai: {
+    label: 'OpenAI (via pydantic-ai)',
+    modelPlaceholder: 'gpt-4o-mini',
+    keyLabel: 'OpenAI API key',
+    keyHelp: 'Stored encrypted; exported to OPENAI_API_KEY at runtime.',
+    requiresKey: true,
+  },
+  groq: {
+    label: 'Groq (via pydantic-ai)',
+    modelPlaceholder: 'llama-3.3-70b-versatile',
+    keyLabel: 'Groq API key',
+    keyHelp: 'Stored encrypted; exported to GROQ_API_KEY at runtime.',
     requiresKey: true,
   },
   mock: {

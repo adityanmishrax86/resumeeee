@@ -1,7 +1,7 @@
 import os
 from typing import Optional
 
-from app.llm.clients import MockLLMClient, NvidiaNIMClient
+from app.llm.clients import MockLLMClient
 
 # Lazy singletons — one per agent type
 _job_analyzer_agent = None
@@ -21,11 +21,15 @@ def _create_llm_client(provider: Optional[str] = None):
     p = provider or _get_provider_name()
     if p in ("mock", "none"):
         return MockLLMClient()
-    if p in ("nvidia", "nim", "nvidia-nim"):
-        return NvidiaNIMClient()
     if p == "google":
         from app.llm.google_client import GoogleClient
         return GoogleClient()
+    if p == "openai":
+        from app.llm.openai_client import OpenAIClient
+        return OpenAIClient()
+    if p == "groq":
+        from app.llm.groq_client import GroqClient
+        return GroqClient()
     return MockLLMClient()
 
 
