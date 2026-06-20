@@ -6,8 +6,8 @@ lives outside the DB at ``backend/app/.secret_key`` so a DB dump alone cannot
 recover plaintext credentials.
 
 Settings are applied to ``os.environ`` so existing code paths
-(``GoogleClient``, ``NvidiaNIMClient``, ``interview_research_agent``) keep
-reading from env without modification.
+(``GoogleClient``, ``OpenAIClient``, ``GroqClient``, etc.) keep reading from
+env without modification.
 """
 
 import logging
@@ -29,7 +29,8 @@ _SECRET_KEY_PATH = Path(__file__).resolve().parent.parent / ".secret_key"
 # Env var names per provider.
 _PROVIDER_ENV: dict[str, dict[str, str]] = {
     "google": {"api_key": "GOOGLE_API_KEY", "model": "GOOGLE_LLM_MODEL"},
-    "nvidia": {"api_key": "NVIDIA_API_KEY", "model": "NIM_MODEL"},
+    "openai": {"api_key": "OPENAI_API_KEY", "model": "OPENAI_LLM_MODEL"},
+    "groq": {"api_key": "GROQ_API_KEY", "model": "GROQ_LLM_MODEL"},
     "mock": {},
 }
 
@@ -88,9 +89,7 @@ class SettingsService:
         if not provider:
             return None
         p = provider.lower().strip()
-        if p in ("nim", "nvidia-nim"):
-            return "nvidia"
-        if p in ("google", "nvidia", "mock"):
+        if p in ("google", "openai", "groq", "mock"):
             return p
         return None
 
@@ -205,10 +204,11 @@ class SettingsService:
     def apply_to_env(cls, db: Session) -> None:
         """Materialise DB settings into ``os.environ``.
 
-        Called on startup and after each save. Pydantic-ai's Google provider
-        reads ``GOOGLE_API_KEY`` from the env, and the NIM client reads
-        ``NVIDIA_API_KEY``/``NIM_MODEL`` — so this is what makes the DB
-        config visible to the rest of the codebase.
+        Called on startup and after each save. pydantic-ai provider clients
+        read their API keys and model names from env vars set here:
+        - Google  → GOOGLE_API_KEY / GOOGLE_LLM_MODEL
+        - OpenAI  → OPENAI_API_KEY / OPENAI_LLM_MODEL
+        - Groq    → GROQ_API_KEY   / GROQ_LLM_MODEL
         """
         row = cls._row(db)
         if row is None or not row.provider:

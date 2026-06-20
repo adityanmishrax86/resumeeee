@@ -19,13 +19,12 @@ class InterviewResearchAgent(AgentAdapter):
     """Agent wrapper for the InterviewResearchService.
 
     Routing logic (checked at run-time from LLM_PROVIDER env var):
-      - LLM_PROVIDER=google  → builds a GoogleClient with duckduckgo_search_tool()
-                                and web_fetch_tool() injected.  The pydantic-ai Agent
-                                runs an autonomous search-and-fetch loop and returns a
-                                typed InterviewResearchResult; GoogleClient.generate()
-                                serialises it to JSON so the service path is unchanged.
-      - Any other provider   → uses the BaseLLMClient passed at construction
-                                (mock / nvidia / etc.) with manual JSON extraction.
+      - LLM_PROVIDER=google|openai|groq  → runs a direct web-search loop via
+                                           DuckDuckGo then makes a single
+                                           structured pydantic-ai Agent call.
+      - Any other provider (mock, etc.)   → uses the BaseLLMClient passed at
+                                           construction with manual JSON
+                                           extraction.
     """
 
     def __init__(self, llm_client: BaseLLMClient):
@@ -40,13 +39,13 @@ class InterviewResearchAgent(AgentAdapter):
         role_title: Optional[str] = None,
         custom_instructions: Optional[str] = None,
     ) -> InterviewResearchResult:
-        if self._provider == "google":
-            return await self._run_with_google_tools(db, job_analysis_id, company_name, role_title, custom_instructions)
+        if self._provider in ("google", "openai", "groq"):
+            return await self._run_with_pydantic_ai_tools(db, job_analysis_id, company_name, role_title, custom_instructions)
         return await self._run_with_llm_client(db, job_analysis_id, company_name, role_title, custom_instructions=custom_instructions)
 
-    # ── Google path: pydantic-ai tools baked into GoogleClient ────────────────
+    # ── pydantic-ai path: DuckDuckGo search + single structured LLM call ─────
 
-    async def _run_with_google_tools(
+    async def _run_with_pydantic_ai_tools(
         self,
         db: Session,
         job_analysis_id: str,
@@ -54,10 +53,11 @@ class InterviewResearchAgent(AgentAdapter):
         role_title: Optional[str],
         custom_instructions: Optional[str] = None,
     ) -> InterviewResearchResult:
-        """Run searches directly then make a single LLM call for structured output.
+        """Run DuckDuckGo searches then make a single structured LLM call.
 
-        This avoids the multi-turn tool-calling loop which is slow and unreliable
-        with some models (e.g. gemma). Instead we:
+        Works for Google, OpenAI, and Groq providers. Avoids the multi-turn
+        tool-calling loop which is slow and unreliable with some models.
+        Instead:
           1. Run DuckDuckGo searches directly in Python (via anyio thread)
           2. Embed the snippets into the prompt
           3. Make ONE LLM call with structured output
@@ -66,11 +66,18 @@ class InterviewResearchAgent(AgentAdapter):
         import functools
         import anyio.to_thread
 
-        model = os.getenv("GOOGLE_LLM_MODEL", "gemini-2.5-flash-preview")
+        # Per-provider model env var and fallback default
+        _MODEL_ENV = {
+            "google": ("GOOGLE_LLM_MODEL", "gemini-2.5-flash-preview"),
+            "openai": ("OPENAI_LLM_MODEL", "gpt-4o-mini"),
+            "groq": ("GROQ_LLM_MODEL", "llama-3.3-70b-versatile"),
+        }
+        env_var, default = _MODEL_ENV.get(self._provider, ("GOOGLE_LLM_MODEL", "gemini-2.5-flash-preview"))
+        model = os.getenv(env_var, default)
 
         logger.info(
-            "InterviewResearchAgent: running single-shot Google agent model=%s job_analysis_id=%s",
-            model, job_analysis_id,
+            "InterviewResearchAgent: running single-shot %s agent model=%s job_analysis_id=%s",
+            self._provider, model, job_analysis_id,
         )
 
         # ── 1. Prepare base prompts ────────────────────────────────────────────
@@ -133,7 +140,7 @@ class InterviewResearchAgent(AgentAdapter):
 
         # ── 3. Single LLM call with structured output ──────────────────────────
         agent = Agent(
-            f"google:{model}",
+            f"{self._provider}:{model}",
             output_type=InterviewResearchResult,
         )
 
@@ -173,7 +180,7 @@ class InterviewResearchAgent(AgentAdapter):
             logger.exception("InterviewResearchAgent: Failed to save results to database")
             raise
 
-    # ── Standard path: any BaseLLMClient (mock / nvidia / google plain) ───────
+    # ── Standard path: any BaseLLMClient (mock, etc.) ────────────────────────
 
     async def _run_with_llm_client(
         self,
