@@ -44,7 +44,7 @@ def test_resume_analyzer_parses_mock_response():
 
     mock_response = json.dumps({
         "skills": ["Python", "Playwright"],
-        "experience_years": "4",
+        "experience_years": 4,
         "domains": ["QA Automation"],
         "certifications": ["ISTQB"],
         "summary": "Experienced QA engineer with automation focus."
@@ -55,7 +55,7 @@ def test_resume_analyzer_parses_mock_response():
     result = ResumeAnalyzerService.analyze_resume(db=db, resume_id="r1", llm_client=client)
 
     assert result.skills == ["Python", "Playwright"]
-    assert result.experience_years == "4"
+    assert result.experience_years == 4
     assert result.domains == ["QA Automation"]
     assert result.certifications == ["ISTQB"]
     assert result.summary.startswith("Experienced QA engineer")

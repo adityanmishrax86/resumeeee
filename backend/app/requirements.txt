@@ -99,20 +99,20 @@ nexus-rpc==1.4.0
 numpy==2.4.6
 openai==2.41.1
 openapi-pydantic==0.5.1
-opentelemetry-api==1.42.1
-opentelemetry-exporter-otlp-proto-common==1.42.1
-opentelemetry-exporter-otlp-proto-http==1.42.1
-opentelemetry-instrumentation==0.63b1
-opentelemetry-instrumentation-asgi==0.63b1
-opentelemetry-instrumentation-fastapi==0.63b1
-opentelemetry-instrumentation-httpx==0.63b1
-opentelemetry-instrumentation-sqlalchemy==0.63b1
+opentelemetry-api==1.39.1
+opentelemetry-exporter-otlp-proto-common==1.39.1
+opentelemetry-exporter-otlp-proto-http==1.39.1
+opentelemetry-instrumentation==0.60b1
+opentelemetry-instrumentation-asgi==0.60b1
+opentelemetry-instrumentation-fastapi==0.60b1
+opentelemetry-instrumentation-httpx==0.60b1
+opentelemetry-instrumentation-sqlalchemy==0.60b1
 opentelemetry-instrumentation-system-metrics==0.60b1
-opentelemetry-proto==1.42.1
-opentelemetry-sdk==1.42.1
-opentelemetry-semantic-conventions==0.63b1
-opentelemetry-util-http==0.63b1
-packaging==26.2
+opentelemetry-proto==1.39.1
+opentelemetry-sdk==1.39.1
+opentelemetry-semantic-conventions==0.60b1
+opentelemetry-util-http==0.60b1
+packaging==25.0
 pathable==0.6.0
 platformdirs==4.10.0
 pluggy==1.6.0
@@ -144,8 +144,8 @@ pytest-asyncio==1.4.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 python-multipart==0.0.32
-pywin32==312
-pywin32-ctypes==0.2.3
+pywin32==312; sys_platform == 'win32'
+pywin32-ctypes==0.2.3; sys_platform == 'win32'
 PyYAML==6.0.3
 RapidFuzz==3.14.5
 referencing==0.37.0
@@ -210,7 +210,7 @@ uvicorn==0.49.0
 watchfiles==1.2.0
 wcwidth==0.8.1
 websockets==16.0
-wrapt==2.2.1
+wrapt==1.17.3
 xai-sdk==1.17.0
 yarl==1.24.2
 zipp==4.1.0

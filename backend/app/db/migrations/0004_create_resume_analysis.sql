@@ -1,5 +1,4 @@
 -- Migration: create resume_analysis table
--- Apply with your migration tooling (Alembic recommended)
 
 CREATE TABLE IF NOT EXISTS resume_analysis (
     id UUID PRIMARY KEY,

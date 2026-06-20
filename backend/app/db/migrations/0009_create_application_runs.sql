@@ -1,6 +1,4 @@
--- Migration 0007: application_runs — per-(job, resume) orchestration run state.
--- Lets the API report failed/complete (not just running), supports per-agent retry,
--- and gives the frontend a single ID to poll instead of guessing from result tables.
+-- Migration: create application_runs table
 
 CREATE TABLE IF NOT EXISTS application_runs (
     id UUID PRIMARY KEY,

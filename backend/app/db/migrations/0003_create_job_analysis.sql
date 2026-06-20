@@ -1,5 +1,4 @@
 -- Migration: create job_analysis table
--- Apply with your migration tooling (Alembic recommended)
 
 CREATE TABLE IF NOT EXISTS job_analysis (
     id UUID PRIMARY KEY,

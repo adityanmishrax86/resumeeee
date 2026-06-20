@@ -34,7 +34,7 @@ _MOCK_JOB_ANALYSIS_RESULT = {
 
 _MOCK_RESUME_ANALYSIS_RESULT = {
     "skills": ["Selenium", "Python"],
-    "experience_years": "4",
+    "experience_years": 4,
     "domains": ["QA"],
     "certifications": [],
     "summary": "QA engineer with Selenium experience.",
@@ -44,6 +44,7 @@ _MOCK_RESUME_MATCH_RESULT = {
     "overall_score": 65,
     "skills_match_score": 60,
     "experience_match_score": 70,
+    "domain_score": 85,
     "matched_required_skills": [],
     "missing_required_skills": ["Playwright"],
     "matched_preferred_skills": [],
@@ -96,10 +97,7 @@ class _FakeRow:
     def __init__(self, id: str, result: dict, **kwargs):
         self.id = id
         self.result = result
-        self.job_id = kwargs.get("job_id")
-        self.resume_id = kwargs.get("resume_id")
-        self.job_analysis_id = kwargs.get("job_analysis_id")
-        self.resume_match_id = kwargs.get("resume_match_id")
+        self.__dict__.update(kwargs)
 
 
 class _FakeQuery:
@@ -140,11 +138,40 @@ class _FakeDB:
     def commit(self):
         self.commits += 1
 
+    def refresh(self, obj):
+        pass
+
 
 # ── Tests ──────────────────────────────────────────────────────────────────────
 
 def _make_client(mock_result: dict) -> MockLLMClient:
     return MockLLMClient(mock_response=json.dumps(mock_result))
+
+
+class _DynamicMockClient(MockLLMClient):
+    def generate(self, system_prompt: str, user_prompt: str, **kwargs) -> str:
+        if "cover-letter" in system_prompt.lower() or "cover letter" in system_prompt.lower():
+            return json.dumps({
+                "variants": [
+                    {
+                        "style": "professional",
+                        "content_md": "Professional cover letter content.",
+                        "why_choose_me": ["Achievement 1", "Achievement 2"]
+                    },
+                    {
+                        "style": "story",
+                        "content_md": "Story cover letter content.",
+                        "why_choose_me": ["Achievement 1", "Achievement 2"]
+                    },
+                    {
+                        "style": "startup",
+                        "content_md": "Startup cover letter content.",
+                        "why_choose_me": ["Achievement 1", "Achievement 2"]
+                    }
+                ],
+                "shared_notes": ["Mock cover letter notes."]
+            })
+        return json.dumps(_MOCK_RESUME_REWRITE_RESULT)
 
 
 def _make_orchestrator() -> OrchestratorService:
@@ -153,7 +180,7 @@ def _make_orchestrator() -> OrchestratorService:
         resume_analyzer_client=_make_client(_MOCK_RESUME_ANALYSIS_RESULT),
         resume_matcher_client=_make_client(_MOCK_RESUME_MATCH_RESULT),
         gap_analysis_client=_make_client(_MOCK_GAP_ANALYSIS_RESULT),
-        resume_rewrite_client=_make_client(_MOCK_RESUME_REWRITE_RESULT),
+        resume_rewrite_client=_DynamicMockClient(),
         interview_research_client=_make_client(_MOCK_INTERVIEW_RESEARCH_RESULT),
     )
 
@@ -172,8 +199,15 @@ def test_orchestrator_happy_path():
     result = asyncio.run(orchestrator.run(db=db, job_id="j1", resume_id="r1", company_name="Acme", role_title="QA"))
 
     assert result.status == "complete", f"Expected complete, got {result.status}: {result.error}"
-    assert result.job_analysis is not None
-    assert result.resume_match is not None
-    assert result.gap_analysis is not None
-    assert result.resume_rewrite is not None
-    assert result.interview_research is not None
+
+    from app.models.analysis_models import ApplicationRun
+    from app.api.orchestrator import _build_status_response
+    run_row = db.query(ApplicationRun).first()
+    hydrated = _build_status_response(db, run_row)
+
+    assert hydrated.job_analysis is not None
+    assert hydrated.resume_match is not None
+    assert hydrated.gap_analysis is not None
+    assert hydrated.resume_rewrite is not None
+    assert hydrated.interview_research is not None
+    assert hydrated.cover_letter is not None

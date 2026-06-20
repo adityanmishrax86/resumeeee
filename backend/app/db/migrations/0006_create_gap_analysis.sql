@@ -1,5 +1,4 @@
 -- Migration: create gap_analyses table
--- Apply with your migration tooling (Alembic recommended)
 
 CREATE TABLE IF NOT EXISTS gap_analyses (
     id UUID PRIMARY KEY,

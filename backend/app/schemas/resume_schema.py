@@ -31,6 +31,7 @@ class ResumeMatchResult(BaseModel):
     overall_score: int                     # 0–100
     skills_match_score: int                # 0–100
     experience_match_score: int            # 0–100
+    domain_score: int = 0                  # 0–100
     matched_required_skills: list[str]
     missing_required_skills: list[str]
     matched_preferred_skills: list[str]
