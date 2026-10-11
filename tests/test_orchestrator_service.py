@@ -185,8 +185,9 @@ def _make_orchestrator() -> OrchestratorService:
     )
 
 
-def test_orchestrator_happy_path():
+def test_orchestrator_happy_path(monkeypatch):
     """Full pipeline run returns status=complete with all stage results."""
+    monkeypatch.setenv("LLM_PROVIDER", "mock")
     db = _FakeDB()
     # Pre-seed the models that the agents query BEFORE they have been
     # inserted (e.g. JobRawPayload needed by JobAnalyzerService).

@@ -16,6 +16,8 @@ class ResumeMatcherAgent(AgentAdapter):
 
     def __init__(self, llm_client:BaseLLMClient):
         super().__init__(llm_client)
+        if hasattr(self.llm_client, "output_type") and getattr(self.llm_client, "output_type", None) is None:
+            self.llm_client.output_type = ResumeMatchResult
 
     async def run(self, db:Session, resume_id: str, job_analysis_id:str ) -> ResumeMatchResult:
         system_prompt, user_prompt = ResumeService.prepare_prompts(db, resume_id, job_analysis_id)

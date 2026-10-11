@@ -19,6 +19,7 @@ def _view_to_response(view) -> SettingsResponse:
         provider=view.provider,
         model=view.model,
         has_api_key=view.has_api_key,
+        extra=getattr(view, 'extra', None) or {},
     )
 
 
@@ -35,6 +36,8 @@ def update_settings(payload: SettingsUpdate, db: Session = Depends(get_db)):
             provider=payload.provider,
             model=payload.model,
             api_key=payload.api_key,
+            base_url=payload.base_url,
+            timeout=payload.timeout,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))

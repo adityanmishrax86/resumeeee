@@ -13,6 +13,8 @@ class ResumeAnalyzerAgent(AgentAdapter):
 
     def __init__(self, llm_client: BaseLLMClient):
         super().__init__(llm_client)
+        if hasattr(self.llm_client, "output_type") and getattr(self.llm_client, "output_type", None) is None:
+            self.llm_client.output_type = ResumeAnalysisResult
 
     async def run(self, db: Session, resume_id: str, analyzer_version: str = "v1") -> ResumeAnalysisResult:
         system_prompt, user_prompt = ResumeAnalyzerService.prepare_prompts(db, resume_id)

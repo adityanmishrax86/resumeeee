@@ -48,8 +48,8 @@ export async function loadSettings({ force = false } = {}) {
   return _pending;
 }
 
-export async function saveSettings({ provider, model, api_key }) {
-  _cache = await postJson('/api/settings', { provider, model, api_key });
+export async function saveSettings({ provider, model, api_key, base_url, timeout }) {
+  _cache = await postJson('/api/settings', { provider, model, api_key, base_url, timeout });
   _broadcast();
   return _cache;
 }

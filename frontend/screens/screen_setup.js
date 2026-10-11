@@ -33,6 +33,13 @@ const PROVIDER_PRESETS = {
     keyHelp: 'Mock provider produces deterministic responses for development.',
     requiresKey: false,
   },
+  ollama: {
+    label: 'Ollama (Local / Self-hosted)',
+    modelPlaceholder: 'llama3',
+    keyLabel: 'Ollama API key (optional)',
+    keyHelp: 'API key is optional for local self-hosted Ollama. Required only if using a custom proxy or authenticated gateway.',
+    requiresKey: false,
+  },
 };
 
 export async function loadScreenSetup(container) {
@@ -92,16 +99,54 @@ export async function loadScreenSetup(container) {
   const keyHelp = document.createElement('p');
   keyHelp.className = 'field-helper';
 
+  // Ollama specific fields
+  const ollamaContainer = document.createElement('div');
+  ollamaContainer.style.display = 'none';
+  ollamaContainer.style.flexDirection = 'column';
+  ollamaContainer.style.gap = '0.9rem';
+  ollamaContainer.style.marginTop = '0.5rem';
+  ollamaContainer.style.marginBottom = '0.5rem';
+
+  const baseUrlLabel = document.createElement('label');
+  baseUrlLabel.textContent = 'Base URL';
+  const baseUrlInput = document.createElement('input');
+  baseUrlInput.type = 'url';
+  baseUrlInput.id = 'ollama-base-url';
+  baseUrlInput.placeholder = 'http://localhost:11434/v1';
+
+  const timeoutLabel = document.createElement('label');
+  timeoutLabel.textContent = 'Timeout (seconds)';
+  const timeoutInput = document.createElement('input');
+  timeoutInput.type = 'number';
+  timeoutInput.id = 'ollama-timeout';
+  timeoutInput.placeholder = '300';
+  timeoutInput.min = '1';
+
+  ollamaContainer.appendChild(baseUrlLabel);
+  ollamaContainer.appendChild(baseUrlInput);
+  ollamaContainer.appendChild(timeoutLabel);
+  ollamaContainer.appendChild(timeoutInput);
+
   function applyProviderPreset() {
-    const cfg = PROVIDER_PRESETS[providerSelect.value];
+    const provider = providerSelect.value;
+    const cfg = PROVIDER_PRESETS[provider];
     if (!cfg) return;
+
+    if (provider === 'ollama') {
+      ollamaContainer.style.display = 'flex';
+      baseUrlInput.value = settings?.extra?.base_url || 'http://localhost:11434/v1';
+      timeoutInput.value = settings?.extra?.timeout || '300';
+    } else {
+      ollamaContainer.style.display = 'none';
+    }
+
     if (!modelInput.value) modelInput.placeholder = cfg.modelPlaceholder;
     else modelInput.placeholder = cfg.modelPlaceholder;
     keyLabel.textContent = cfg.keyLabel;
-    keyInput.placeholder = settings?.has_api_key && settings.provider === providerSelect.value
+    keyInput.placeholder = settings?.has_api_key && settings.provider === provider
       ? '•••••••• (leave blank to keep existing)'
       : 'Paste your API key';
-    keyInput.required = cfg.requiresKey && !(settings?.has_api_key && settings.provider === providerSelect.value);
+    keyInput.required = cfg.requiresKey && !(settings?.has_api_key && settings.provider === provider);
     keyHelp.textContent = cfg.keyHelp;
   }
   providerSelect.addEventListener('change', applyProviderPreset);
@@ -125,6 +170,8 @@ export async function loadScreenSetup(container) {
       showToast('Settings cleared', 'success');
       modelInput.value = '';
       keyInput.value = '';
+      baseUrlInput.value = 'http://localhost:11434/v1';
+      timeoutInput.value = '300';
       applyProviderPreset();
     } catch (err) {
       showToast('Clear failed: ' + err.message, 'error');
@@ -137,6 +184,7 @@ export async function loadScreenSetup(container) {
   form.appendChild(providerSelect);
   form.appendChild(modelLabel);
   form.appendChild(modelInput);
+  form.appendChild(ollamaContainer);
   form.appendChild(keyLabel);
   form.appendChild(keyInput);
   form.appendChild(keyHelp);
@@ -153,11 +201,16 @@ export async function loadScreenSetup(container) {
     e.preventDefault();
     saveBtn.disabled = true;
     try {
-      const next = await saveSettings({
+      const payload = {
         provider: providerSelect.value,
         model: modelInput.value.trim(),
         api_key: keyInput.value || null,
-      });
+      };
+      if (providerSelect.value === 'ollama') {
+        payload.base_url = baseUrlInput.value.trim() || 'http://localhost:11434/v1';
+        payload.timeout = parseInt(timeoutInput.value, 10) || 300;
+      }
+      const next = await saveSettings(payload);
       renderStatus(statusLine, next);
       keyInput.value = '';
       showToast('Settings saved', 'success');

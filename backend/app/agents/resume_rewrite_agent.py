@@ -23,6 +23,8 @@ class ResumeRewriteAgent(AgentAdapter):
 
     def __init__(self, llm_client: BaseLLMClient):
         super().__init__(llm_client)
+        if hasattr(self.llm_client, "output_type") and getattr(self.llm_client, "output_type", None) is None:
+            self.llm_client.output_type = ResumeRewriteResult
 
     async def run(self, db: Session, resume_id: str, gap_analysis_id: str | None = None, job_analysis_id: str | None = None, custom_instructions: str | None = None) -> ResumeRewriteResult:
         system_prompt, user_prompt = ResumeRewriteService.prepare_prompts(db, resume_id, gap_analysis_id, job_analysis_id, custom_instructions)

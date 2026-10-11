@@ -31,6 +31,7 @@ _PROVIDER_ENV: dict[str, dict[str, str]] = {
     "google": {"api_key": "GOOGLE_API_KEY", "model": "GOOGLE_LLM_MODEL"},
     "openai": {"api_key": "OPENAI_API_KEY", "model": "OPENAI_LLM_MODEL"},
     "groq": {"api_key": "GROQ_API_KEY", "model": "GROQ_LLM_MODEL"},
+    "ollama": {"model": "OLLAMA_LLM_MODEL"},
     "mock": {},
 }
 
@@ -77,6 +78,7 @@ class SettingsView:
     provider: Optional[str]
     model: Optional[str]
     has_api_key: bool
+    extra: Optional[dict] = None
 
 
 class SettingsService:
@@ -89,9 +91,12 @@ class SettingsService:
         if not provider:
             return None
         p = provider.lower().strip()
-        if p in ("google", "openai", "groq", "mock"):
+        if p in ("google", "openai", "groq", "ollama", "mock"):
             return p
         return None
+
+    # Providers that work without an API key (local / keyless).
+    _KEYLESS_PROVIDERS = frozenset({"mock", "ollama"})
 
     @classmethod
     def get_view(cls, db: Session) -> SettingsView:
@@ -99,13 +104,14 @@ class SettingsService:
         if row and row.provider:
             provider = cls._normalize_provider(row.provider)
             has_key = bool(row.api_key_encrypted)
-            configured = bool(provider and row.model and (has_key or provider == "mock"))
+            configured = bool(provider and row.model and (has_key or provider in cls._KEYLESS_PROVIDERS))
             return SettingsView(
                 configured=configured,
                 source="db",
                 provider=provider,
                 model=row.model,
                 has_api_key=has_key,
+                extra=row.extra or {},
             )
 
         env_provider = cls._normalize_provider(os.getenv("LLM_PROVIDER"))
@@ -113,16 +119,25 @@ class SettingsService:
             envs = _PROVIDER_ENV.get(env_provider, {})
             api_key_env = envs.get("api_key")
             model_env = envs.get("model")
-            has_key = bool(os.getenv(api_key_env)) if api_key_env else True
+            has_key = bool(os.getenv(api_key_env)) if api_key_env else (env_provider in cls._KEYLESS_PROVIDERS)
             model_val = os.getenv(model_env) if model_env else None
-            configured = bool(env_provider and (model_val or env_provider == "mock") and has_key)
+            configured = bool(env_provider and (model_val or env_provider in cls._KEYLESS_PROVIDERS) and has_key)
             if configured:
+                extra = {}
+                if env_provider == "ollama":
+                    base_url = os.getenv("OLLAMA_BASE_URL")
+                    timeout = os.getenv("OLLAMA_TIMEOUT")
+                    if base_url:
+                        extra["base_url"] = base_url
+                    if timeout:
+                        extra["timeout"] = int(timeout)
                 return SettingsView(
                     configured=True,
                     source="env",
                     provider=env_provider,
                     model=model_val,
                     has_api_key=bool(api_key_env and os.getenv(api_key_env)),
+                    extra=extra,
                 )
 
         return SettingsView(
@@ -136,12 +151,14 @@ class SettingsService:
         provider: str,
         model: str,
         api_key: Optional[str],
+        base_url: Optional[str] = None,
+        timeout: Optional[int] = None,
     ) -> SettingsView:
         norm = cls._normalize_provider(provider)
         if norm is None:
             raise ValueError(f"unsupported provider: {provider}")
-        if norm != "mock" and not api_key:
-            # Require api_key when first saving a real provider.
+        if norm not in cls._KEYLESS_PROVIDERS and not api_key:
+            # Require api_key when first saving a provider that needs one.
             existing = cls._row(db)
             if existing is None or not existing.api_key_encrypted:
                 raise ValueError("api_key is required for this provider")
@@ -155,8 +172,22 @@ class SettingsService:
         row.model = model.strip()
         if api_key:
             row.api_key_encrypted = _encrypt(api_key)
-        elif norm == "mock":
+        elif norm in cls._KEYLESS_PROVIDERS:
             row.api_key_encrypted = None
+
+        # Persist Ollama-specific extras in the JSONB column.
+        if norm == "ollama":
+            extra = dict(row.extra or {})
+            if base_url is not None:
+                extra["base_url"] = base_url.strip()
+            elif "base_url" not in extra:
+                extra["base_url"] = "http://localhost:11434/v1"
+            if timeout is not None:
+                extra["timeout"] = timeout
+            row.extra = extra
+        else:
+            # Clear Ollama extras when switching away.
+            row.extra = {}
 
         from datetime import datetime
         row.updated_at = datetime.utcnow()
@@ -209,6 +240,7 @@ class SettingsService:
         - Google  → GOOGLE_API_KEY / GOOGLE_LLM_MODEL
         - OpenAI  → OPENAI_API_KEY / OPENAI_LLM_MODEL
         - Groq    → GROQ_API_KEY   / GROQ_LLM_MODEL
+        - Ollama  → OLLAMA_LLM_MODEL / OLLAMA_BASE_URL / OLLAMA_TIMEOUT
         """
         row = cls._row(db)
         if row is None or not row.provider:
@@ -227,3 +259,16 @@ class SettingsService:
             plain = _decrypt(row.api_key_encrypted)
             if plain:
                 os.environ[envs["api_key"]] = plain
+
+        # Ollama-specific extras (base_url, api_key, timeout) stored in JSONB.
+        if provider == "ollama":
+            extra = row.extra or {}
+            if extra.get("base_url"):
+                os.environ["OLLAMA_BASE_URL"] = extra["base_url"]
+            if extra.get("timeout"):
+                os.environ["OLLAMA_TIMEOUT"] = str(extra["timeout"])
+            # Ollama Cloud users may optionally store an API key.
+            if row.api_key_encrypted:
+                plain = _decrypt(row.api_key_encrypted)
+                if plain:
+                    os.environ["OLLAMA_API_KEY"] = plain

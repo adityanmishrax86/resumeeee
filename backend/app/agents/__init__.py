@@ -30,6 +30,9 @@ def _create_llm_client(provider: Optional[str] = None):
     if p == "groq":
         from app.llm.groq_client import GroqClient
         return GroqClient()
+    if p == "ollama":
+        from app.llm.ollama_client import OllamaClient
+        return OllamaClient()
     return MockLLMClient()
 
 

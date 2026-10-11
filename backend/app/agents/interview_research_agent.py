@@ -30,6 +30,8 @@ class InterviewResearchAgent(AgentAdapter):
     def __init__(self, llm_client: BaseLLMClient):
         super().__init__(llm_client)
         self._provider = os.getenv("LLM_PROVIDER", "mock").lower()
+        if hasattr(self.llm_client, "output_type") and getattr(self.llm_client, "output_type", None) is None:
+            self.llm_client.output_type = InterviewResearchResult
 
     async def run(
         self,
