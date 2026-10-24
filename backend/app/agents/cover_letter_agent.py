@@ -25,7 +25,7 @@ class CoverLetterAgent(AgentAdapter):
 
     def __init__(self, llm_client: BaseLLMClient):
         super().__init__(llm_client)
-        if hasattr(self.llm_client, "output_type") and getattr(self.llm_client, "output_type", None) is None:
+        if hasattr(self.llm_client, "output_type"):
             self.llm_client.output_type = CoverLetterResult
 
     async def run(
@@ -40,7 +40,7 @@ class CoverLetterAgent(AgentAdapter):
             db, resume_id, job_analysis_id, gap_analysis_id, custom_instructions
         )
 
-        response_text = await self._generate(system_prompt=system_prompt, user_prompt=user_prompt)
+        response_text = await self._generate(system_prompt=system_prompt, user_prompt=user_prompt, output_type=CoverLetterResult)
 
         try:
             _parse_or_raise(response_text)
@@ -51,12 +51,13 @@ class CoverLetterAgent(AgentAdapter):
             )
             corrective_user = (
                 user_prompt
-                + "\n\nIMPORTANT: Your previous response was rejected because the `variants` array did not "
-                "contain EXACTLY three entries with the styles `professional`, `story`, and `startup`. "
-                "Return a single JSON object — no markdown fences, no commentary — whose top-level "
-                "`variants` array has EXACTLY 3 items, one per required style. Do not omit any variant."
+                + f"\n\nIMPORTANT: Your previous response was rejected by schema validation: {first_err}. "
+                "Return a corrected single JSON object — no markdown fences or commentary — matching "
+                "the full CoverLetterResult schema. Every item in `variants` MUST include `style` "
+                "(`professional`, `story`, or `startup`), `content_md`, and `why_choose_me`. Include "
+                "exactly three variants, one for each required style, plus `shared_notes`."
             )
-            response_text = await self._generate(system_prompt=system_prompt, user_prompt=corrective_user)
+            response_text = await self._generate(system_prompt=system_prompt, user_prompt=corrective_user, output_type=CoverLetterResult)
             try:
                 _parse_or_raise(response_text)
             except LLMInvalidResponse:

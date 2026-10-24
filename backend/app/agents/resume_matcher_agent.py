@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.agent_adapter import AgentAdapter
 from app.llm.clients import BaseLLMClient
-from app.schemas.resume_schema import ResumeMatchResult
+from app.schemas.resume_schema import ResumeMatchDraft, ResumeMatchResult
 from app.services.resume_service import ResumeService
 
 
@@ -16,15 +16,17 @@ class ResumeMatcherAgent(AgentAdapter):
 
     def __init__(self, llm_client:BaseLLMClient):
         super().__init__(llm_client)
-        if hasattr(self.llm_client, "output_type") and getattr(self.llm_client, "output_type", None) is None:
-            self.llm_client.output_type = ResumeMatchResult
+        if hasattr(self.llm_client, "output_type"):
+            self.llm_client.output_type = ResumeMatchDraft
 
     async def run(self, db:Session, resume_id: str, job_analysis_id:str ) -> ResumeMatchResult:
         system_prompt, user_prompt = ResumeService.prepare_prompts(db, resume_id, job_analysis_id)
 
-        response_text = await self._generate(system_prompt=system_prompt, user_prompt=user_prompt)
+        response_text = await self._generate(system_prompt=system_prompt, user_prompt=user_prompt, output_type=ResumeMatchDraft)
 
-        result = ResumeService.match_resume(db, response_text)
+        result = ResumeService.match_resume(
+            db, response_text, resume_id=resume_id, job_analysis_id=job_analysis_id
+        )
 
         from app.models.analysis_models import ResumeMatch
         match_entry = ResumeMatch(

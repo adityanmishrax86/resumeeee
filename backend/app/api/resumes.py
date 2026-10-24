@@ -19,9 +19,7 @@ from app.services.resume_service import (
     ResumeService
 )
 from app.agents import resume_matcher_agent
-from app.models.analysis_models import ResumeMatch
 from app.models.models import Resume
-import uuid
 import json
 import ast
 
@@ -135,32 +133,20 @@ async def match_resume(request: ResumeMatchRequest, db: Session = Depends(get_db
     agent = resume_matcher_agent()
     try:
         result = await agent.run(db, request.resume_id, request.job_analysis_id)
-        # Expect the agent to return a ResumeMatchResult or a raw/str dict
+        # The agent owns normalization and persistence; do not create a second
+        # row for the same generated result here.
         try:
             if isinstance(result, ResumeMatchResult):
                 match_model = result
             else:
                 # Use the service to parse/validate the raw agent response
-                match_model = ResumeService.match_resume(db, result)
+                match_model = ResumeService.match_resume(
+                    db, result, resume_id=request.resume_id,
+                    job_analysis_id=request.job_analysis_id,
+                )
         except Exception as e:
             logging.exception("Failed to normalize agent result: %s", e)
             raise HTTPException(status_code=500, detail="invalid_agent_result")
-
-        # Persist the match result (best-effort; don't fail the request on DB errors)
-        try:
-            payload = match_model.model_dump()
-            match = ResumeMatch(
-                id=uuid.uuid4(),
-                resume_id=request.resume_id,
-                job_analysis_id=request.job_analysis_id,
-                result=payload,
-                overall_score=match_model.overall_score,
-                match_summary=match_model.match_summary,
-            )
-            db.add(match)
-            db.commit()
-        except Exception:
-            logging.exception("Failed to persist resume match result")
 
         return match_model
     except ValueError as ve:

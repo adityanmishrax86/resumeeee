@@ -19,7 +19,7 @@ class ResumeAnalyzerAgent(AgentAdapter):
     async def run(self, db: Session, resume_id: str, analyzer_version: str = "v1") -> ResumeAnalysisResult:
         system_prompt, user_prompt = ResumeAnalyzerService.prepare_prompts(db, resume_id)
 
-        response_text = await self._generate(system_prompt=system_prompt, user_prompt=user_prompt)
+        response_text = await self._generate(system_prompt=system_prompt, user_prompt=user_prompt, output_type=ResumeAnalysisResult)
 
         class _ReplayLLMClient(BaseLLMClient):
             def __init__(self, text: str):

@@ -97,11 +97,28 @@ export function renderResumeVariants(container, data, ctx = {}) {
   if (ctx.resumeId && ctx.gapAnalysisId && ctx.jobAnalysisId && typeof ctx.onRegen === 'function') {
     container.appendChild(createRegenPanel({
       title: 'Regenerate resume variants',
-      placeholder: 'e.g. emphasise BigQuery + Dataproc, trim the leadership bullets, keep ATS variant under 1 page…',
+      placeholder: 'e.g. prioritise supported BigQuery work, clarify existing project outcomes, preserve every heading…',
       buttonLabel: 'Regenerate variants',
       onSubmit: (instructions) => ctx.onRegen(instructions),
       onSuccess: (result) => renderResumeVariants(container, result, ctx),
     }));
+  }
+
+  if (Array.isArray(data.shared_changes) && data.shared_changes.length) {
+    const shared = document.createElement('div');
+    shared.className = 'card';
+    shared.style.marginBottom = '1rem';
+    const heading = document.createElement('h4');
+    heading.textContent = 'Changes shared across variants';
+    shared.appendChild(heading);
+    const list = document.createElement('ul');
+    data.shared_changes.forEach((change) => {
+      const item = document.createElement('li');
+      item.textContent = change;
+      list.appendChild(item);
+    });
+    shared.appendChild(list);
+    container.appendChild(shared);
   }
 
   let variantsList = [];
@@ -193,6 +210,11 @@ function renderVariantContent(container, variantData) {
 
   const content = variantData.content_md || variantData.content || variantData.markdown || '';
   if (content) {
+    const words = content.trim().split(/\s+/).filter(Boolean).length;
+    const lengthNote = document.createElement('p');
+    lengthNote.style.cssText = `margin:0 0 0.75rem;color:${words >= 700 ? '#4ade80' : '#fbbf24'};font-size:0.85rem;`;
+    lengthNote.textContent = `${words.toLocaleString()} words · ${words >= 700 ? 'two-page length target met' : 'below the 700-word two-page target'}`;
+    container.appendChild(lengthNote);
     renderMarkdownBlock(container, 'Resume Content', content);
     return;
   }

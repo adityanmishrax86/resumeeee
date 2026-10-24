@@ -26,8 +26,7 @@ class JobAnalyzerAgent(AgentAdapter):
         system_prompt, user_prompt = JobAnalyzerService.prepare_prompts(db, job_id)
 
         # Generate text from the underlying LLM (async-safe)
-        response_text = await self._generate(system_prompt=system_prompt, user_prompt=user_prompt)
-
+        response_text = await self._generate(system_prompt=system_prompt, user_prompt=user_prompt, output_type=JobAnalysisResult)
         # Replay client that returns the generated text so the service can
         # reuse its existing parsing and persistence logic.
         class _ReplayLLMClient(BaseLLMClient):

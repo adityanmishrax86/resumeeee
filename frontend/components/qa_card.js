@@ -34,6 +34,8 @@ function _renderMarkdownBlock(text) {
  * @param {string} opts.question                    question text
  * @param {string} [opts.category]
  * @param {string} [opts.whyAsked]
+ * @param {string} [opts.evidenceBasis]               reported or source material used
+ * @param {string} [opts.sourceReference]             source URL for reported questions
  * @param {string[]} [opts.tips]                    short tip bullets (preview)
  * @param {string|null} [opts.detailedAnswer]       if present, renders immediately
  * @param {'company'|'profile'|'user'} [opts.source='company']
@@ -49,6 +51,8 @@ export function createQACard(opts) {
     question,
     category = '',
     whyAsked = '',
+    evidenceBasis = '',
+    sourceReference = '',
     tips = [],
     detailedAnswer = null,
     source = 'company',
@@ -94,6 +98,28 @@ export function createQACard(opts) {
     tag.className = `qa-card__tag qa-card__tag--${source}`;
     tag.textContent = source === 'user' ? 'your question' : 'from resume';
     meta.appendChild(tag);
+  }
+  if (evidenceBasis) {
+    const evidence = document.createElement('span');
+    evidence.className = 'qa-card__pill';
+    evidence.textContent = evidenceBasis.replace(/_/g, ' ');
+    meta.appendChild(evidence);
+  }
+  if (sourceReference) {
+    try {
+      const parsed = new URL(sourceReference);
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+        const link = document.createElement('a');
+        link.href = parsed.href;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = 'source';
+        link.className = 'qa-card__tag';
+        meta.appendChild(link);
+      }
+    } catch (_) {
+      // Ignore invalid or unsafe source references from generated content.
+    }
   }
   if (whyAsked) {
     const why = document.createElement('div');

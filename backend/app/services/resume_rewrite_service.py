@@ -5,6 +5,7 @@ from typing import Any
 from pathlib import Path
 
 from sqlalchemy.orm import Session
+from pydantic import ValidationError
 
 from app.models.models import Resume
 from app.models.analysis_models import JobAnalysis, GapAnalysis, ResumeRewrite
@@ -15,6 +16,7 @@ from app.llm.exceptions import LLMInvalidResponse
 logger = logging.getLogger(__name__)
 
 REQUIRED_VARIANTS = ("A_ats", "B_impact", "C_technical")
+MIN_RESUME_WORDS = 700  # Practical lower bound for a dense, two-page Markdown resume.
 
 
 _FENCE_RE = re.compile(r"^```(?:json)?\s*([\s\S]*?)\s*```\s*$", re.IGNORECASE)
@@ -43,7 +45,9 @@ def _extract_json(text: str) -> str:
     return stripped
 
 
-def _parse_rewrite_or_raise(response_text: str, *, resume_id: str) -> ResumeRewriteResult:
+def _parse_rewrite_or_raise(
+    response_text: str, *, resume_id: str, source_resume: str | None = None
+) -> ResumeRewriteResult:
     """Parse the LLM response into a ResumeRewriteResult, raising
     LLMInvalidResponse on JSON failure or missing variants."""
     json_text = _extract_json(response_text)
@@ -62,7 +66,14 @@ def _parse_rewrite_or_raise(response_text: str, *, resume_id: str) -> ResumeRewr
                 provider="google",
             ) from exc
 
-    analysis = ResumeRewriteResult.parse_obj(data)
+    try:
+        analysis = ResumeRewriteResult.parse_obj(data)
+    except ValidationError as exc:
+        details = "; ".join(
+            f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+            for error in exc.errors()
+        )
+        raise LLMInvalidResponse(f"resume_rewrite response did not match schema: {details}") from exc
 
     if not analysis.variants:
         logger.warning(
@@ -82,6 +93,27 @@ def _parse_rewrite_or_raise(response_text: str, *, resume_id: str) -> ResumeRewr
             f"resume_rewrite returned only {len(analysis.variants)} variant(s); expected 3",
             provider="google",
         )
+    source_word_count = len(re.findall(r"\b[\w][\w+#./&'-]*\b", source_resume or ""))
+    required_word_count = max(MIN_RESUME_WORDS, source_word_count)
+    for variant in analysis.variants:
+        word_count = len(re.findall(r"\b[\w][\w+#./&'-]*\b", variant.content_md))
+        if word_count < required_word_count:
+            raise LLMInvalidResponse(
+                f"resume_rewrite variant {variant.variant} has {word_count} words; "
+                f"expected at least {required_word_count} words for a two-page resume "
+                "and to preserve the source resume's content",
+                provider="google",
+            )
+    if source_resume:
+        source_headings = re.findall(r"^\s*(#{1,6}\s+.+?)\s*$", source_resume, flags=re.MULTILINE)
+        if source_headings:
+            for variant in analysis.variants:
+                output_headings = re.findall(r"^\s*(#{1,6}\s+.+?)\s*$", variant.content_md, flags=re.MULTILINE)
+                if output_headings != source_headings:
+                    raise LLMInvalidResponse(
+                        f"resume_rewrite variant {variant.variant} changed, omitted, or reordered source headings",
+                        provider="google",
+                    )
     return analysis
 
 
@@ -142,7 +174,10 @@ class ResumeRewriteService:
             raise
 
         try:
-            analysis = _parse_rewrite_or_raise(response_text, resume_id=resume_id)
+            resume_text = getattr(resume, "content_md", None) or getattr(resume, "content", "") or ""
+            analysis = _parse_rewrite_or_raise(
+                response_text, resume_id=resume_id, source_resume=resume_text
+            )
         except LLMInvalidResponse as first_err:
             # Corrective retry: append an explicit instruction reminding the
             # model that variants is required and must contain three entries.
@@ -152,16 +187,16 @@ class ResumeRewriteService:
             )
             corrective = (
                 user_prompt
-                + "\n\nIMPORTANT: Your previous response was rejected because the `variants` array was missing or did not contain exactly three entries. "
-                "Return a JSON object whose `variants` array contains EXACTLY 3 items with the variant labels `A_ats`, `B_impact`, and `C_technical`. "
-                "Do not omit any variant."
+                + f"\n\nIMPORTANT: Your previous response failed validation: {first_err}. Return exactly three complete edited resumes (`A_ats`, `B_impact`, `C_technical`) that meet the stated word-count target. Preserve every original heading verbatim and edit the supplied resume in place. Do not invent facts or omit source sections."
             )
             try:
                 response_text = llm_client.generate(system_prompt=system_prompt, user_prompt=corrective)
             except Exception:
                 logger.exception("Resume rewrite corrective retry call failed resume_id=%s", resume_id)
                 raise
-            analysis = _parse_rewrite_or_raise(response_text, resume_id=resume_id)
+            analysis = _parse_rewrite_or_raise(
+                response_text, resume_id=resume_id, source_resume=resume_text
+            )
 
         entry = ResumeRewrite(
             resume_id=resume_id,

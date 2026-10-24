@@ -129,7 +129,8 @@ export function renderInterviewPrep(container, data, ctx = {}) {
   renderSection(container, '🏢 Company Snapshot', data.company_snapshot || data.company_overview || data.company, '#38bdf8');
 
   // Tech stack
-  renderSection(container, '🛠️ Tech Stack', data.tech_stack || data.technologies, '#818cf8');
+  renderSection(container, '🛠️ Tech Stack', data.tech_stack_intel || data.tech_stack || data.technologies, '#818cf8');
+  renderSection(container, '🎯 Hiring Signals', data.hiring_signals, '#a78bfa');
 
   // Resume-based questions (only when we have both ids and the generator hook)
   if (ctx.jobAnalysisId && ctx.resumeId && typeof ctx.onGenerateProfileQuestions === 'function') {
@@ -152,7 +153,7 @@ export function renderInterviewPrep(container, data, ctx = {}) {
   renderLegacyQuestions(container, '💻 Technical Questions', data.technical_questions);
 
   // Tips
-  renderSection(container, '💡 Preparation Tips', data.tips || data.preparation_tips || data.advice, '#4ade80');
+  renderSection(container, '💡 Preparation Checklist', data.prep_checklist || data.tips || data.preparation_tips || data.advice, '#4ade80');
 
   // Culture fit
   renderSection(container, '🤝 Culture & Values', data.culture || data.culture_fit || data.company_culture, '#fb923c');
@@ -394,6 +395,8 @@ function renderQuestionsList(container, heading, questions, data, ctx) {
       tips: Array.isArray(obj.strong_answer_tips) ? obj.strong_answer_tips : [],
       detailedAnswer: obj.detailed_answer || null,
       source,
+      evidenceBasis: obj.evidence_basis || '',
+      sourceReference: obj.source_reference || '',
       onAskAI: _buildAskAIHandler(ctx, obj),
       onSaveAnswer: typeof ctx.onSaveAnswer === 'function'
         ? async (detailedAnswer) => {
@@ -522,6 +525,8 @@ function renderProfileQuestionsSection(container, data, ctx) {
         question: q.question,
         category: q.category || 'profile',
         whyAsked: q.why_asked || '',
+        evidenceBasis: q.evidence_basis || 'resume',
+        sourceReference: q.source_reference || '',
         tips: q.strong_answer_tips || [],
         detailedAnswer: q.detailed_answer || null,
         source: 'profile',

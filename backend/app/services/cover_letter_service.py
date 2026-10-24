@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from sqlalchemy.orm import Session
+from pydantic import ValidationError
 
 from app.llm.clients import BaseLLMClient
 from app.llm.exceptions import LLMInvalidResponse
@@ -63,7 +64,20 @@ def _parse_or_raise(response_text: str) -> CoverLetterResult:
                 len(response_text or ""), (response_text or "")[:1500],
             )
             raise LLMInvalidResponse("cover_letter returned non-JSON output") from exc
-    result = CoverLetterResult.parse_obj(data)
+    try:
+        result = CoverLetterResult.parse_obj(data)
+    except ValidationError as exc:
+        # Treat schema mismatches like other invalid model output so the agent
+        # can request a corrected response instead of failing the whole run.
+        details = "; ".join(
+            f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+            for error in exc.errors()
+        )
+        logger.warning(
+            "cover_letter schema-invalid response (truncated, %d chars): %s",
+            len(response_text or ""), (response_text or "")[:1500],
+        )
+        raise LLMInvalidResponse(f"cover_letter response did not match schema: {details}") from exc
     if not result.variants or len(result.variants) < 3:
         logger.warning(
             "cover_letter wrong-shape response (%d variants; truncated raw, %d chars): %s",
@@ -165,8 +179,10 @@ class CoverLetterService:
             )
             corrective = (
                 user_prompt
-                + "\n\nIMPORTANT: Your previous response was rejected because the `variants` array did not contain exactly three entries. "
-                "Return a JSON object whose `variants` array contains EXACTLY 3 items with the styles `professional`, `story`, and `startup`."
+                + f"\n\nIMPORTANT: Your previous response was rejected by schema validation: {first_err}. "
+                "Return a corrected JSON object matching the full CoverLetterResult schema. Every "
+                "variant must include `style` (`professional`, `story`, or `startup`), `content_md`, "
+                "and `why_choose_me`; return exactly one variant for each required style and include `shared_notes`."
             )
             response_text = llm_client.generate(system_prompt=system_prompt, user_prompt=corrective)
             result = _parse_or_raise(response_text)

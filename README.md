@@ -252,6 +252,30 @@ GET http://localhost:8000/api/orchestrate/status/{job_id}/{resume_id}
 
 ## Testing
 
+### Isolated Docker Compose stack
+
+Validate the Compose files, then start the test database, backend, and frontend.
+The example environment defaults to the mock LLM provider, so no API key is
+needed:
+
+```bash
+docker compose -p jobcopilot-test -f docker-compose.yml -f docker-compose.test.yml --env-file .env.test.example --profile test config --quiet
+docker compose -p jobcopilot-test -f docker-compose.yml -f docker-compose.test.yml --env-file .env.test.example --profile test up -d --build
+```
+
+The test stack uses separate containers, a named database volume, and host ports
+`55432` (PostgreSQL), `18000` (backend), and `15173` (frontend). Open
+`http://localhost:15173` to use it. To stop the stack while preserving its
+database:
+
+```bash
+docker compose -p jobcopilot-test -f docker-compose.yml -f docker-compose.test.yml --env-file .env.test.example --profile test down
+```
+
+To also remove the test database volume, add `-v` to the `down` command.
+
+### Backend tests
+
 ```bash
 cd tests
 pytest test_gap_analysis_service.py

@@ -19,5 +19,7 @@ Produce a JSON object with exactly one top-level field, `role_specific_questions
 - `category`: one of `coding`, `scenario`, `analytical`, `behavioural`, `technical`
 - `why_asked`: one sentence
 - `strong_answer_tips`: EXACTLY 3 short bullet strings
+- `evidence_basis`: `reported` only when supported by supplied live evidence; otherwise `job_description` or `inferred`
+- `source_reference`: include an HTTP(S) source URL only when the question is actually supported by a supplied search result
 
 Mix categories the same way as the initial pass. Do not include any other top-level fields. Return ONLY valid JSON, no markdown fences.

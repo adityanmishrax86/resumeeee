@@ -13,10 +13,12 @@ try:
     from pydantic_ai import Agent
     from pydantic_ai.models.ollama import OllamaModel
     from pydantic_ai.providers.ollama import OllamaProvider
+    from pydantic_ai.output import NativeOutput
 except Exception:
     Agent = None
     OllamaModel = None
     OllamaProvider = None
+    NativeOutput = None
 
 
 _STATUS_CODE_RE = re.compile(r"status[_ ]?code[=:\s]*(\d{3})", re.IGNORECASE)
@@ -90,7 +92,21 @@ class OllamaClient(BaseLLMClient):
         if self.tools:
             agent_kwargs["tools"] = self.tools
         if self.output_type is not None:
-            agent_kwargs["output_type"] = self.output_type
+            # Ollama's OpenAI-compatible endpoint can return an empty message
+            # when Pydantic AI forces a structured-output tool call. Native
+            # JSON-schema output uses response_format instead of tool_choice.
+            agent_kwargs["output_type"] = (
+                NativeOutput(self.output_type)
+                if NativeOutput is not None
+                else self.output_type
+            )
+        # Small local models can need more than Pydantic AI's default single
+        # correction attempt to satisfy the structured-output schema. Keep the
+        # retry budget Ollama-specific and configurable because each retry is
+        # another full local inference call.
+        agent_kwargs["retries"] = {
+            "output": max(0, int(os.getenv("OLLAMA_OUTPUT_RETRIES", "3")))
+        }
 
         try:
             provider_kwargs: dict[str, Any] = {"base_url": self.base_url}

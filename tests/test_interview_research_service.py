@@ -40,14 +40,43 @@ class _FakeDB:
         self.committed = True
 
 
+def _valid_questions(first=None):
+    categories = (
+        ["scenario"] * 4
+        + ["analytical"] * 4
+        + ["behavioural"] * 4
+        + ["technical"] * 4
+        + ["coding"] * 9
+    )
+    questions = []
+    if first:
+        questions.append(first)
+    for index, category in enumerate(categories, start=1):
+        if len(questions) >= 25:
+            break
+        questions.append({
+            "question": f"How would you apply Playwright in distinct scenario {index}?",
+            "category": category,
+            "why_asked": "Assess role-relevant reasoning.",
+            "strong_answer_tips": ["Use a concrete example", "Explain your reasoning", "Discuss trade-offs"],
+        })
+    while len(questions) < 25:
+        index = len(questions) + 1
+        questions.append({
+            "question": f"How would you approach distinct Playwright task {index}?",
+            "category": "technical",
+            "why_asked": "Assess role-relevant reasoning.",
+            "strong_answer_tips": ["Use a concrete example", "Explain your reasoning", "Discuss trade-offs"],
+        })
+    return questions
+
+
 def test_interview_research_parses_mock_response():
     job = _FakeObj(id="ja1", result={"required_skills": ["Playwright"], "role_title": "QA Engineer"})
     db = _FakeDB(job)
 
     mock_response = json.dumps({
-        "role_specific_questions": [
-            {"question": "How do you reduce Playwright test flakiness?", "category": "technical", "why_asked": "Assess async timing handling", "strong_answer_tips": ["Describe retries", "Use deterministic selectors"]}
-        ],
+        "role_specific_questions": _valid_questions({"question": "How do you reduce Playwright test flakiness?", "category": "technical", "why_asked": "Assess async timing handling", "strong_answer_tips": ["Describe retries", "Use deterministic selectors", "Explain how you verify stability"]}),
         "company_snapshot": "Mid-size SaaS with focus on web apps.",
         "tech_stack_intel": ["Playwright", "Python", "GitHub Actions"],
         "hiring_signals": ["CI/CD emphasis"],
@@ -60,9 +89,46 @@ def test_interview_research_parses_mock_response():
 
     result = InterviewResearchService.research_interview(db=db, job_analysis_id="ja1", company_name="Acme", role_title="QA Engineer", llm_client=client)
 
-    assert len(result.role_specific_questions) == 1
+    assert len(result.role_specific_questions) == 25
+    assert result.role_specific_questions[0].question == "How do you reduce Playwright test flakiness?"
     assert "Playwright" in result.tech_stack_intel
     assert db.added is not None
+    assert db.committed is True
+
+
+def test_interview_research_retries_when_model_returns_too_few_questions():
+    job = _FakeObj(id="ja1", result={"required_skills": ["Playwright"], "role_title": "QA Engineer"})
+    db = _FakeDB(job)
+
+    def payload(questions):
+        return json.dumps({
+            "role_specific_questions": questions,
+            "company_snapshot": "Role-focused snapshot.",
+            "tech_stack_intel": ["Playwright"],
+            "hiring_signals": ["Playwright depth"],
+            "culture_notes": "Cross-functional collaboration is mentioned.",
+            "red_flags": ["Clarify team ownership"],
+            "prep_checklist": ["Review the stated testing workflow"],
+        })
+
+    class SequenceClient:
+        def __init__(self):
+            self.responses = [payload(_valid_questions()[:21]), payload(_valid_questions())]
+
+        def generate(self, system_prompt, user_prompt):
+            return self.responses.pop(0)
+
+    client = SequenceClient()
+    result = InterviewResearchService.research_interview(
+        db=db,
+        job_analysis_id="ja1",
+        company_name="Acme",
+        role_title="QA Engineer",
+        llm_client=client,
+    )
+
+    assert len(result.role_specific_questions) == 25
+    assert not client.responses
     assert db.committed is True
 
 
@@ -91,9 +157,7 @@ def test_research_interview_backfills_empty_sections():
     db = _FakeDB(job)
 
     mock_response = json.dumps({
-        "role_specific_questions": [
-            {"question": "Q1", "category": "coding", "why_asked": "x", "strong_answer_tips": ["a", "b", "c"]}
-        ],
+        "role_specific_questions": _valid_questions({"question": "Q1", "category": "coding", "why_asked": "x", "strong_answer_tips": ["a", "b", "c"]}),
         "company_snapshot": "Snapshot.",
         "tech_stack_intel": ["Python"],
         "hiring_signals": [],
@@ -108,9 +172,9 @@ def test_research_interview_backfills_empty_sections():
         role_title="Gen AI Automation Testing", llm_client=client,
     )
 
-    assert len(result.hiring_signals) >= 3, "must backfill hiring_signals from JD"
-    assert len(result.red_flags) >= 3, "must backfill red_flags from JD"
-    assert len(result.prep_checklist) >= 8, "must backfill prep_checklist from JD"
+    assert len(result.hiring_signals) >= 5, "must backfill hiring_signals from JD"
+    assert len(result.red_flags) >= 4, "must backfill red_flags from JD"
+    assert len(result.prep_checklist) >= 10, "must backfill prep_checklist from JD"
     # Spot-check that backfill uses JD content rather than canned text.
     combined = " ".join(result.hiring_signals + result.red_flags + result.prep_checklist).lower()
     assert "python" in combined or "ci/cd" in combined or "mlops" in combined
@@ -122,9 +186,7 @@ def test_research_interview_preserves_nonempty_sections():
     db = _FakeDB(job)
 
     mock_response = json.dumps({
-        "role_specific_questions": [
-            {"question": "Q1", "category": "coding", "why_asked": "x", "strong_answer_tips": ["a", "b", "c"]}
-        ],
+        "role_specific_questions": _valid_questions({"question": "Q1", "category": "coding", "why_asked": "x", "strong_answer_tips": ["a", "b", "c"]}),
         "company_snapshot": "Snapshot.",
         "tech_stack_intel": ["Python"],
         "hiring_signals": ["Only one signal"],
@@ -139,9 +201,12 @@ def test_research_interview_preserves_nonempty_sections():
         role_title="QA", llm_client=client,
     )
 
-    assert result.hiring_signals == ["Only one signal"]
-    assert result.red_flags == ["Only one flag"]
-    assert result.prep_checklist == ["Only one prep item"]
+    assert result.hiring_signals[0] == "Only one signal"
+    assert result.red_flags[0] == "Only one flag"
+    assert result.prep_checklist[0] == "Only one prep item"
+    assert len(result.hiring_signals) >= 5
+    assert len(result.red_flags) >= 4
+    assert len(result.prep_checklist) >= 10
 
 
 # ── Tests for new methods (save_user_items / generate_profile_questions /
@@ -290,13 +355,13 @@ def test_generate_profile_questions_returns_n_items():
                 "question": "Walk me through your Selenium-to-Playwright migration.",
                 "category": "scenario",
                 "why_asked": "Probe migration depth",
-                "strong_answer_tips": ["Cite a specific migration"],
+                "strong_answer_tips": ["Cite a specific migration", "Explain your own contribution", "Describe the outcome"],
             },
             {
                 "question": "Describe a flaky test you debugged.",
                 "category": "behavioural",
                 "why_asked": "Assess debugging rigor",
-                "strong_answer_tips": ["Use STAR"],
+                "strong_answer_tips": ["Set the situation", "Describe your actions", "Share the result"],
             },
         ]
     })

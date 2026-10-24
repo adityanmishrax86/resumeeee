@@ -6,4 +6,4 @@ Job analysis:
 Gap analysis:
 {gap_analysis}
 
-Using the resume above and the analyses, produce a ResumeRewriteResult JSON object with three variants as specified in the system prompt.
+Treat the resume above as the source document and revise its existing content in place. Preserve all original headings exactly. Focus on KEY ACHIEVEMENTS, PROFESSIONAL EXPERIENCE, SELECTED PROJECTS & ACHIEVEMENTS, and TECHNICAL SKILLS. Keep the full resume structure and all other sections. Produce a ResumeRewriteResult JSON object with three complete variants as specified in the system prompt.

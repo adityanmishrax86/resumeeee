@@ -94,7 +94,7 @@ export function loadScreen5(container) {
 // ── Renderers ────────────────────────────────────────────────────────────────
 
 const GAP_BUCKETS = [
-  { key: 'critical_gaps', label: 'Critical Gaps', color: '#f87171' },
+  { key: 'critical_gaps', label: 'Missing Required Skills', color: '#f87171' },
   { key: 'moderate_gaps', label: 'Moderate Gaps', color: '#fb923c' },
   { key: 'minor_gaps', label: 'Minor Gaps', color: '#fbbf24' },
 ];

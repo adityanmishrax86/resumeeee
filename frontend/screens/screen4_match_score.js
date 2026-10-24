@@ -114,6 +114,7 @@ export function renderMatch(container, match) {
     { label: 'Overall', value: match.overall_score },
     { label: 'Skills', value: match.skills_match_score },
     { label: 'Experience', value: match.experience_match_score },
+    { label: 'Domain', value: match.domain_score },
   ].forEach(({ label, value }) => {
     const chip = document.createElement('div');
     chip.style.cssText = `
@@ -152,7 +153,7 @@ export function renderMatch(container, match) {
 
     // Create a container for the markdown content, inline if possible
     const efContent = document.createElement('span');
-    efContent.innerHTML = window.marked ? window.marked.parse(match.experience_fit) : match.experience_fit;
+    efContent.textContent = String(match.experience_fit).replace(/_/g, ' ');
     ef.appendChild(efContent);
     
     container.appendChild(ef);
@@ -162,7 +163,7 @@ export function renderMatch(container, match) {
   const grid = document.createElement('div');
   grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;';
 
-  const addList = (title, items, color) => {
+  const addList = (title, items, color, evidence = {}) => {
     const section = document.createElement('div');
     const h4 = document.createElement('h4');
     h4.style.cssText = `color:${color};margin-bottom:0.4rem;`;
@@ -173,6 +174,7 @@ export function renderMatch(container, match) {
     (items || []).forEach(item => {
       const li = document.createElement('li');
       li.textContent = item;
+      if (evidence[item]) li.title = `Resume evidence: ${evidence[item]}`;
       ul.appendChild(li);
     });
     if ((items || []).length === 0) {
@@ -182,9 +184,9 @@ export function renderMatch(container, match) {
     return section;
   };
 
-  grid.appendChild(addList('✅ Matched Required Skills', match.matched_required_skills, '#4ade80'));
+  grid.appendChild(addList('✅ Matched Required Skills', match.matched_required_skills, '#4ade80', match.skill_evidence));
   grid.appendChild(addList('❌ Missing Required Skills', match.missing_required_skills, '#f87171'));
-  grid.appendChild(addList('⭐ Matched Preferred Skills', match.matched_preferred_skills, '#a78bfa'));
+  grid.appendChild(addList('⭐ Matched Preferred Skills', match.matched_preferred_skills, '#a78bfa', match.skill_evidence));
   grid.appendChild(addList('⚠️ Missing Preferred Skills', match.missing_preferred_skills, '#fb923c'));
   container.appendChild(grid);
 
@@ -225,10 +227,16 @@ export function renderMatch(container, match) {
   const maxRows = Math.max(covered.length, gaps.length, 1);
   for (let i = 0; i < maxRows; i++) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td style="padding:0.3rem 0.5rem;opacity:0.85;">${covered[i] || ''}</td>
-      <td style="padding:0.3rem 0.5rem;opacity:0.85;">${gaps[i] || ''}</td>
-    `;
+    const coveredCell = document.createElement('td');
+    coveredCell.style.cssText = 'padding:0.3rem 0.5rem;opacity:0.85;';
+    coveredCell.textContent = covered[i] || '';
+    if (covered[i] && match.ats_keyword_evidence?.[covered[i]]) {
+      coveredCell.title = `Resume evidence: ${match.ats_keyword_evidence[covered[i]]}`;
+    }
+    const gapCell = document.createElement('td');
+    gapCell.style.cssText = 'padding:0.3rem 0.5rem;opacity:0.85;';
+    gapCell.textContent = gaps[i] || '';
+    tr.append(coveredCell, gapCell);
     tbody.appendChild(tr);
   }
   table.appendChild(tbody);

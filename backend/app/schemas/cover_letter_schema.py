@@ -1,6 +1,6 @@
 from typing import List
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class CoverLetterVariant(BaseModel):
@@ -12,9 +12,12 @@ class CoverLetterVariant(BaseModel):
       - `startup`      — concise, energetic, focused on ownership and shipping.
     """
 
-    style: str
-    content_md: str
-    why_choose_me: List[str] = Field(default_factory=list)
+    style: str = Field(validation_alias=AliasChoices("style", "variant"))
+    content_md: str = Field(validation_alias=AliasChoices("content_md", "content"))
+    why_choose_me: List[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("why_choose_me", "changes_summary"),
+    )
 
 
 class CoverLetterResult(BaseModel):

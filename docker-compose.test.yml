@@ -1,0 +1,76 @@
+# Standalone test environment. It owns a separate database volume and uses
+# different host ports from docker-compose.yml.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: jobcopilot-test-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${TEST_POSTGRES_USER:-jobcopilot_test}
+      POSTGRES_PASSWORD: ${TEST_POSTGRES_PASSWORD:-jobcopilot_test}
+      POSTGRES_DB: ${TEST_POSTGRES_DB:-jobcopilot_test}
+    volumes:
+      - test_pgdata:/var/lib/postgresql/data
+      - ./backend/app/db/migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEST_POSTGRES_USER:-jobcopilot_test} -d ${TEST_POSTGRES_DB:-jobcopilot_test}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: jobcopilot-test-backend
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://${TEST_POSTGRES_USER:-jobcopilot_test}:${TEST_POSTGRES_PASSWORD:-jobcopilot_test}@db:5432/${TEST_POSTGRES_DB:-jobcopilot_test}
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GOOGLE_LLM_MODEL: ${GOOGLE_LLM_MODEL:-gemini-2.5-flash-preview}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_LLM_MODEL: ${GROQ_LLM_MODEL:-llama-3.3-70b-versatile}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_LLM_MODEL: ${OPENAI_LLM_MODEL:-gpt-4o-mini}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
+      LOG_LEVEL: ${LOG_LEVEL:-DEBUG}
+      LOGFIRE_TOKEN: ${LOGFIRE_TOKEN:-}
+    ports:
+      - "18000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: jobcopilot-test-frontend
+    restart: unless-stopped
+    command: npm run dev -- --host
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:18000}
+    ports:
+      - "15173:5173"
+    depends_on:
+      - backend
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: jobcopilot-test-ollama
+    profiles:
+      - ollama
+    volumes:
+      - test_ollama_data:/root/.ollama
+    ports:
+      - "21434:11434"
+
+volumes:
+  test_pgdata:
+    name: jobcopilot_test_pgdata
+  test_ollama_data:
+    name: jobcopilot_test_ollama_data

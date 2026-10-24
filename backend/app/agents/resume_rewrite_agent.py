@@ -7,8 +7,13 @@ import logging
 from app.agents.agent_adapter import AgentAdapter
 from app.llm.clients import BaseLLMClient
 from app.llm.exceptions import LLMInvalidResponse
-from app.services.resume_rewrite_service import ResumeRewriteService, _parse_rewrite_or_raise
+from app.services.resume_rewrite_service import (
+    MIN_RESUME_WORDS,
+    ResumeRewriteService,
+    _parse_rewrite_or_raise,
+)
 from app.schemas.resume_rewrite_schema import ResumeRewriteResult
+from app.models.models import Resume
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +33,13 @@ class ResumeRewriteAgent(AgentAdapter):
 
     async def run(self, db: Session, resume_id: str, gap_analysis_id: str | None = None, job_analysis_id: str | None = None, custom_instructions: str | None = None) -> ResumeRewriteResult:
         system_prompt, user_prompt = ResumeRewriteService.prepare_prompts(db, resume_id, gap_analysis_id, job_analysis_id, custom_instructions)
+        source_resume = db.query(Resume).filter(Resume.id == resume_id).first()
+        source_resume_text = (getattr(source_resume, "content_md", None) or "") if source_resume else ""
 
-        response_text = await self._generate(system_prompt=system_prompt, user_prompt=user_prompt)
+        response_text = await self._generate(system_prompt=system_prompt, user_prompt=user_prompt, output_type=ResumeRewriteResult)
 
         try:
-            _parse_rewrite_or_raise(response_text, resume_id=resume_id)
+            _parse_rewrite_or_raise(response_text, resume_id=resume_id, source_resume=source_resume_text)
         except LLMInvalidResponse as first_err:
             logger.warning(
                 "resume_rewrite: first attempt invalid (%s) resume_id=%s — corrective retry against live LLM",
@@ -40,14 +47,11 @@ class ResumeRewriteAgent(AgentAdapter):
             )
             corrective_user = (
                 user_prompt
-                + "\n\nIMPORTANT: Your previous response was rejected because the `variants` array was missing "
-                "or did not contain EXACTLY three entries. Return a single JSON object — no markdown fences, no "
-                "commentary — whose top-level `variants` array has EXACTLY 3 items with the labels `A_ats`, "
-                "`B_impact`, and `C_technical`. Do not omit any variant."
+                + f"\n\nIMPORTANT: Your previous response failed validation: {first_err}. Return one valid JSON object with exactly three complete edited resumes (`A_ats`, `B_impact`, `C_technical`), each meeting the validation word-count target (at least {MIN_RESUME_WORDS} words and never shorter than the source resume). Edit the supplied resume in place, preserve every heading verbatim, and focus edits on KEY ACHIEVEMENTS, PROFESSIONAL EXPERIENCE, SELECTED PROJECTS & ACHIEVEMENTS, and TECHNICAL SKILLS. Do not invent facts or omit original sections."
             )
-            response_text = await self._generate(system_prompt=system_prompt, user_prompt=corrective_user)
+            response_text = await self._generate(system_prompt=system_prompt, user_prompt=corrective_user, output_type=ResumeRewriteResult)
             try:
-                _parse_rewrite_or_raise(response_text, resume_id=resume_id)
+                _parse_rewrite_or_raise(response_text, resume_id=resume_id, source_resume=source_resume_text)
             except LLMInvalidResponse:
                 logger.error(
                     "resume_rewrite: corrective retry also invalid resume_id=%s", resume_id,

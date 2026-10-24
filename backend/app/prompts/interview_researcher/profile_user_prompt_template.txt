@@ -16,7 +16,7 @@ Role: {role_title}
 ==================================================================
 YOUR TASK
 ==================================================================
-Produce EXACTLY 25 interview questions grounded in the candidate's actual resume content.
+Produce EXACTLY {count} interview questions grounded in the candidate's actual resume content.
 Each question MUST reference something concrete from the resume (a specific role, project, metric, technology, transition, gap, or achievement) — not a generic role question.
 
 Good examples (use the resume's own phrasing):
@@ -32,16 +32,17 @@ Bad examples (do NOT produce these — too generic):
 
 Constraints:
 - Each question must explicitly name or paraphrase the resume item it draws from.
+- Set `evidence_basis` to `resume` for resume-grounded questions and `job_description` for role-context questions. Never claim an inferred question was actually asked.
 - Use only these category values: behavioural, scenario, technical.
 - Spread questions across the candidate's most substantive resume items — do not ask 5 questions about one bullet.
 - Each why_asked is one sentence stating which resume claim the interviewer is probing.
 - strong_answer_tips is EXACTLY 3 short distinct bullet strings.
 
-Return ONLY a valid JSON object with a single top-level field `questions` containing 25 InterviewQuestion objects.
+Return ONLY a valid JSON object with a single top-level field `questions` containing exactly {count} InterviewQuestion objects.
 No markdown fences, no explanation, no other top-level fields.
 
 Example shape (do not copy values):
-{
+{{
   "questions": [
     {
       "question": "...",
@@ -50,4 +51,4 @@ Example shape (do not copy values):
       "strong_answer_tips": ["...", "...", "..."]
     }
   ]
-}
+}}

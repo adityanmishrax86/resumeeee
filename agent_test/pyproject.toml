@@ -1,0 +1,11 @@
+[project]
+name = "agent-test"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "langfuse>=5.0.3",
+    "python-dotenv>=1.2.4",
+    "requests>=2.32.0",
+]

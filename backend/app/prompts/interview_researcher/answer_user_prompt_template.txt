@@ -32,5 +32,6 @@ Constraints:
 - Markdown is allowed (bold, italics, bullet lists, fenced code blocks for code). Do NOT include the question text or any preamble like "Here is my answer" — start directly with the answer.
 - If the question is a coding problem, include a short code snippet in the appropriate language (inferred from the job context).
 - Do NOT invent specific company names, headcounts, revenue, or other facts not present in the job context.
+- Do not invent candidate actions, outcomes, metrics, or first-person experience. This prompt does not include the candidate's resume, so use clear placeholders such as `[add your actual result]` where a personal fact is needed, and tell the candidate to replace them with truthful details.
 
 Stream the answer as plain text. No JSON wrapping.

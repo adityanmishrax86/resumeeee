@@ -45,6 +45,7 @@ def _make_orchestrator() -> OrchestratorService:
         gap_analysis_client=_create_llm_client(),
         resume_rewrite_client=_create_llm_client(),
         interview_research_client=_create_llm_client(),
+        cover_letter_client=_create_llm_client(),
     )
 
 

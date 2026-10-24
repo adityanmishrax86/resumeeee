@@ -89,11 +89,76 @@ class InterviewResearchService:
 
         analysis = InterviewResearchResult.parse_obj(data)
 
+        # Models occasionally stop short of the requested count even when the
+        # response is otherwise valid. Give them one focused repair pass before
+        # rejecting the entire interview-prep result.
+        if len(analysis.role_specific_questions) != 25:
+            repair_prompt = (
+                f"{user_prompt}\n\n"
+                "CORRECTIVE RETRY: Your previous response contained "
+                f"{len(analysis.role_specific_questions)} of the required 25 questions. "
+                "Return a complete InterviewResearchResult JSON object with exactly 25 "
+                "distinct questions. Preserve the useful existing content and add enough "
+                "new, non-duplicate questions grounded in the job description to reach 25. "
+                "Keep exactly 3 distinct strong_answer_tips per question and meet all "
+                "category minimums. Here is the previous result to repair:\n"
+                f"{analysis.model_dump_json()}"
+            )
+            try:
+                repaired_text = llm_client.generate(
+                    system_prompt=system_prompt,
+                    user_prompt=repair_prompt,
+                )
+                repaired_data = json.loads(_extract_json(repaired_text))
+                repaired_analysis = InterviewResearchResult.model_validate(repaired_data)
+                if len(repaired_analysis.role_specific_questions) == 25:
+                    analysis = repaired_analysis
+                else:
+                    logger.warning(
+                        "Interview research corrective retry still returned %d questions; "
+                        "keeping original response for validation",
+                        len(repaired_analysis.role_specific_questions),
+                    )
+            except Exception:
+                logger.exception(
+                    "Interview research corrective retry failed for job_analysis_id=%s",
+                    job_analysis_id,
+                )
+
         InterviewResearchService._backfill_empty_sections(analysis, job_json, company_name, role_title)
+        InterviewResearchService._validate_generated_result(analysis)
 
         InterviewResearchService.persist_result(db=db, job_analysis_id=job_analysis_id, result=analysis)
 
         return analysis
+
+    @staticmethod
+    def _validate_generated_result(result: InterviewResearchResult) -> None:
+        """Enforce the research-agent contract before saving its base result."""
+        questions = result.role_specific_questions
+        if len(questions) != 25:
+            raise ValueError(f"Interview research must contain exactly 25 questions; received {len(questions)}")
+        normalized_questions = [re.sub(r"\W+", " ", question.question.lower()).strip() for question in questions]
+        if len(set(normalized_questions)) != len(normalized_questions):
+            raise ValueError("Interview research contains duplicate or near-duplicate questions")
+        if any(len(question.strong_answer_tips) != 3 for question in questions):
+            raise ValueError("Every generated interview question must contain exactly 3 answer tips")
+        allowed_categories = {"coding", "scenario", "analytical", "behavioural", "technical"}
+        if any(question.category not in allowed_categories for question in questions):
+            raise ValueError("Interview questions contain an unsupported category")
+        if any(len(set(question.strong_answer_tips)) != 3 for question in questions):
+            raise ValueError("Interview answer tips must be distinct within each question")
+        for category in ("scenario", "analytical", "behavioural", "technical"):
+            count = sum(question.category == category for question in questions)
+            if count < 4:
+                raise ValueError(f"Interview research requires at least 4 {category} questions; received {count}")
+        for field_name, values, minimum in (
+            ("hiring_signals", result.hiring_signals, 5),
+            ("red_flags", result.red_flags, 4),
+            ("prep_checklist", result.prep_checklist, 10),
+        ):
+            if len(values) < minimum:
+                raise ValueError(f"Interview research requires at least {minimum} {field_name}; received {len(values)}")
 
     @staticmethod
     def _backfill_empty_sections(
@@ -102,13 +167,23 @@ class InterviewResearchService:
         company_name: str | None = None,
         role_title: str | None = None,
     ) -> None:
-        """Populate `hiring_signals`, `red_flags`, and `prep_checklist` from the
-        JobAnalysis when the LLM left them empty.
+        """Backfill thin `hiring_signals`, `red_flags`, and `prep_checklist`
+        from the JobAnalysis when the LLM left them empty or too short.
 
         These three fields are always JD-derivable, so emptiness is a presentation
         bug rather than a "no evidence" decision. Mutates `result` in place.
         """
         ja = job_json or {}
+        for field_name in ("hiring_signals", "red_flags", "prep_checklist"):
+            values = getattr(result, field_name)
+            seen: set[str] = set()
+            unique_values: list[str] = []
+            for item in values:
+                key = item.strip().lower()
+                if key and key not in seen:
+                    seen.add(key)
+                    unique_values.append(item)
+            setattr(result, field_name, unique_values)
         role = role_title or ja.get("role_title") or "this role"
         company = company_name or "the company"
         required = list(ja.get("required_skills") or [])
@@ -144,6 +219,32 @@ class InterviewResearchService:
                 signals.append("Role expects practical, demonstrable experience over theoretical answers.")
             result.hiring_signals = signals[:6]
 
+        signal_fallbacks = [f"The JD explicitly prioritises {skill}." for skill in required]
+        signal_fallbacks.extend(
+            f"The role includes this stated responsibility: {item}" for item in responsibilities
+        )
+        if seniority:
+            signal_fallbacks.append(f"The JD identifies the level as {seniority}.")
+        if domain:
+            signal_fallbacks.append(f"The stated domain is {domain}.")
+        if tools or frameworks or ja.get("programming_languages"):
+            named_stack = tools + frameworks + list(ja.get("programming_languages") or [])
+            signal_fallbacks.append(f"The JD names these technologies: {', '.join(named_stack[:5])}.")
+        if preferred:
+            signal_fallbacks.append(f"The JD lists preferred qualifications: {', '.join(preferred[:4])}.")
+        if not experience:
+            signal_fallbacks.append("The supplied job analysis does not specify an experience range; clarify level expectations.")
+        if not domain:
+            signal_fallbacks.append("The supplied job analysis does not identify a domain; clarify the team's core work.")
+        if not tools and not frameworks:
+            signal_fallbacks.append("The supplied job analysis does not identify a primary toolset; ask about the team's stack.")
+        signal_fallbacks.append("Ask how success will be measured against the stated responsibilities.")
+        for item in signal_fallbacks:
+            if len(result.hiring_signals) >= 5:
+                break
+            if item not in result.hiring_signals:
+                result.hiring_signals.append(item)
+
         if not result.red_flags:
             flags: list[str] = []
             tool_count = len(tools) + len(frameworks)
@@ -157,13 +258,26 @@ class InterviewResearchService:
                 )
             if experience:
                 flags.append(
-                    f"Experience band '{experience}' — confirm it isn't a downlevel disguised as a senior role."
+                    f"Confirm how the stated experience band '{experience}' maps to level and day-to-day scope."
                 )
-            flags.append("Salary band not disclosed in the JD — ask early to avoid late-stage mismatch.")
-            flags.append(
-                f"Clarify reporting structure and on-call expectations for {role} at {company}."
-            )
+            if not experience:
+                flags.append("Ask what experience level and scope the team expects for this role.")
+            flags.append(f"Clarify team boundaries and success measures for {role}.")
+            flags.append("Ask about compensation range and work-arrangement expectations if they are not covered in the JD.")
             result.red_flags = flags[:6]
+
+        for item in (
+            "Ask which listed qualifications are essential on day one and which can be learned after joining.",
+            "Clarify the team's boundaries and how this role works with adjacent teams.",
+            "Ask what outcomes define success in the first six months.",
+            "Confirm whether on-call or out-of-hours support is part of the role.",
+            "Ask which tools and responsibilities are most important in the first quarter.",
+            "Clarify how the role balances independent delivery with cross-team collaboration.",
+        ):
+            if len(result.red_flags) >= 4:
+                break
+            if item not in result.red_flags:
+                result.red_flags.append(item)
 
         if not result.prep_checklist:
             checklist: list[str] = []
@@ -178,15 +292,18 @@ class InterviewResearchService:
                 checklist.append(
                     "Sketch a CI/CD pipeline diagram for the role's domain and rehearse explaining trade-offs."
                 )
-            if "Python" in (ja.get("programming_languages") or []):
-                checklist.append("Warm up with 2-3 medium LeetCode-style Python problems on strings and collections.")
+            languages = list(ja.get("programming_languages") or [])
+            if languages:
+                checklist.append(
+                    f"Practise a short role-relevant coding problem in {languages[0]} and explain your trade-offs."
+                )
             checklist.extend(
                 [
                     f"Research recent product launches and engineering blog posts from {company}.",
-                    "Prepare 3 STAR stories: a conflict, a critical bug saved, and a cross-functional win.",
+                    "Prepare STAR examples from your actual experience that show ownership, problem-solving, and collaboration.",
                     "Draft 5 thoughtful questions to ask the interviewer about team, roadmap, and metrics of success.",
                     f"Re-read the JD and map each responsibility to a concrete example from your experience.",
-                    "Run a mock interview with a peer covering 1 coding + 1 scenario + 1 behavioural question.",
+                    "Run a mock interview with a peer covering one role-specific technical task, one scenario, and one behavioural question.",
                     "Prepare a concise 60-second pitch tailored to the role and company.",
                 ]
             )
@@ -198,6 +315,32 @@ class InterviewResearchService:
                     seen.add(item)
                     deduped.append(item)
             result.prep_checklist = deduped[:12]
+
+        checklist_fallbacks = [
+            f"Prepare one truthful example from your experience for this stated responsibility: {item}"
+            for item in responsibilities
+        ]
+        checklist_fallbacks.extend(
+            f"Review {skill} and prepare to describe your actual hands-on experience."
+            for skill in required + preferred
+        )
+        checklist_fallbacks.extend([
+            "Write down the assumptions you would clarify before solving a role-specific scenario.",
+            "Prepare questions about the team's workflow, success measures, and technical trade-offs.",
+            "Review your resume and be ready to explain the evidence behind each relevant claim.",
+            "Choose one relevant technical topic from the JD and practise explaining it without jargon.",
+            "Prepare a concise introduction that connects your actual experience to this role.",
+            "Select a real project and rehearse explaining its goal, your contribution, and outcome.",
+            "Review each required skill and identify the strongest truthful example you can discuss.",
+            "Prepare one question about how the team measures success in this role.",
+            "Practise explaining a technical trade-off relevant to the listed tools or responsibilities.",
+            "Identify any requirement without resume evidence and prepare an honest response.",
+        ])
+        for item in checklist_fallbacks:
+            if len(result.prep_checklist) >= 10:
+                break
+            if item not in result.prep_checklist:
+                result.prep_checklist.append(item)
 
     @staticmethod
     def persist_result(db: Session, job_analysis_id: str, result: "InterviewResearchResult") -> None:
@@ -348,6 +491,8 @@ class InterviewResearchService:
         new_questions = data.get("role_specific_questions", [])
         if not new_questions:
             raise ValueError("LLM returned no additional questions")
+        if len(new_questions) != count:
+            raise ValueError(f"Expected exactly {count} additional questions, received {len(new_questions)}")
 
         # Append, dedupe by question text, persist.
         existing_qs = {q.question.strip().lower() for q in existing_result.role_specific_questions}
@@ -356,14 +501,15 @@ class InterviewResearchService:
             try:
                 q = InterviewQuestion.parse_obj(raw)
             except Exception:
-                continue
+                raise ValueError("An additional interview question did not match the schema")
+            if len(q.strong_answer_tips) != 3 or len(set(q.strong_answer_tips)) != 3:
+                raise ValueError("Each additional question must include exactly 3 distinct answer tips")
+            if q.category not in {"coding", "scenario", "analytical", "behavioural", "technical"}:
+                raise ValueError("An additional interview question has an unsupported category")
             if q.question.strip().lower() in existing_qs:
-                continue
+                raise ValueError("An additional question duplicates an existing question")
             existing_qs.add(q.question.strip().lower())
             appended.append(q)
-
-        if not appended:
-            raise ValueError("All returned questions duplicated existing ones")
 
         existing_result.role_specific_questions.extend(appended)
         existing_row.result = existing_result.model_dump()
@@ -662,18 +808,30 @@ class InterviewResearchService:
         raw_questions = data.get("questions") or data.get("role_specific_questions") or []
         if not raw_questions:
             raise ValueError("LLM returned no profile questions")
+        if len(raw_questions) != count:
+            raise ValueError(f"Expected exactly {count} profile questions, received {len(raw_questions)}")
 
         out: list[InterviewQuestion] = []
         for raw in raw_questions:
             try:
                 q = InterviewQuestion.parse_obj(raw)
+                if len(q.strong_answer_tips) != 3:
+                    raise ValueError("each question requires exactly three answer tips")
+                if q.category not in {"behavioural", "scenario", "technical"}:
+                    raise ValueError("unsupported profile question category")
+                if len(set(q.strong_answer_tips)) != 3:
+                    raise ValueError("answer tips must be distinct")
                 q.source = "profile"
+                if q.evidence_basis == "inferred":
+                    q.evidence_basis = "resume"
                 out.append(q)
             except Exception:
                 continue
 
-        if not out:
-            raise ValueError("All returned profile questions failed validation")
+        if len(out) != count:
+            raise ValueError(
+                f"Expected {count} valid profile questions, received {len(out)}; retry with the requested count"
+            )
 
         return out
 
@@ -729,6 +887,8 @@ class InterviewResearchService:
                 continue
             if not q.source:
                 q.source = "user"
+            if q.evidence_basis == "inferred":
+                q.evidence_basis = "user"
             to_prepend.append(q)
             existing_text_to_idx[key] = -1  # mark as seen
 

@@ -156,6 +156,43 @@ class InterviewResearchAgent(AgentAdapter):
             else:
                 research_result = InterviewResearchResult.model_validate(result.output)
 
+            if len(research_result.role_specific_questions) != 25:
+                missing_count = 25 - len(research_result.role_specific_questions)
+                repair_prompt = (
+                    f"{enriched_prompt}\n\n"
+                    "CORRECTIVE RETRY: The previous response had "
+                    f"{len(research_result.role_specific_questions)} questions. Return a complete "
+                    "InterviewResearchResult with exactly 25 distinct questions, preserving the "
+                    "useful existing content and adding grounded questions to fill the shortfall. "
+                    f"At least {max(0, missing_count)} additional questions are needed. "
+                    "Maintain exactly 3 distinct answer tips per question and all category minimums. "
+                    f"Previous response:\n{research_result.model_dump_json()}"
+                )
+                logger.warning(
+                    "InterviewResearchAgent: received %d questions; requesting one corrective retry",
+                    len(research_result.role_specific_questions),
+                )
+                repair_agent = Agent(
+                    f"{self._provider}:{model}",
+                    output_type=InterviewResearchResult,
+                )
+                repaired = await asyncio.wait_for(
+                    repair_agent.run(repair_prompt), timeout=600.0
+                )
+                repaired_output = getattr(repaired, "output", repaired)
+                repaired_result = (
+                    repaired_output
+                    if isinstance(repaired_output, InterviewResearchResult)
+                    else InterviewResearchResult.model_validate(repaired_output)
+                )
+                if len(repaired_result.role_specific_questions) == 25:
+                    research_result = repaired_result
+                else:
+                    logger.error(
+                        "InterviewResearchAgent: corrective retry returned %d questions",
+                        len(repaired_result.role_specific_questions),
+                    )
+
         except asyncio.TimeoutError:
             logger.error("InterviewResearchAgent: LLM call timed out after 120s")
             raise TimeoutError("Interview research LLM call timed out after 120s")
@@ -210,7 +247,8 @@ class InterviewResearchAgent(AgentAdapter):
             )
         else:
             response_text = await self._generate(
-                system_prompt=system_prompt, user_prompt=user_prompt
+                system_prompt=system_prompt, user_prompt=user_prompt,
+                output_type=InterviewResearchResult,
             )
 
         class _ReplayLLMClient(BaseLLMClient):

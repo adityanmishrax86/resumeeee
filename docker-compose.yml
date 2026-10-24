@@ -34,7 +34,7 @@ services:
       GOOGLE_LLM_MODEL: ${GOOGLE_LLM_MODEL:-gemini-2.5-flash-preview}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
-      LOGFIRE_TOKEN: ${LOGFIRE_TOKEN}
+      LOGFIRE_TOKEN: ${LOGFIRE_TOKEN:-}
     volumes:
       - ./backend/app:/srv/app
     ports:

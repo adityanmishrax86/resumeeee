@@ -19,7 +19,7 @@ class GapAnalysisAgent(AgentAdapter):
     async def run(self, db: Session, job_analysis_id: str, resume_match_id: str) -> GapAnalysisResult:
         system_prompt, user_prompt = GapAnalysisService.prepare_prompts(db, job_analysis_id, resume_match_id)
 
-        response_text = await self._generate(system_prompt=system_prompt, user_prompt=user_prompt)
+        response_text = await self._generate(system_prompt=system_prompt, user_prompt=user_prompt, output_type=GapAnalysisResult)
 
         class _ReplayLLMClient(BaseLLMClient):
             def __init__(self, text: str):

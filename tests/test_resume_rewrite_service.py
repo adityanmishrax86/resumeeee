@@ -59,11 +59,12 @@ def test_resume_rewrite_parses_mock_response():
     gap = _FakeObj(id="ga1", result={"critical_gaps": []})
     db = _FakeDB(resume, job, gap)
 
+    full_resume = "# Alice\n" + "Experienced engineer " * 520
     mock_response = json.dumps({
         "variants": [
-            {"variant": "A_ats", "content_md": "ATS content", "changes_summary": ["Added Playwright to skills"]},
-            {"variant": "B_impact", "content_md": "Impact content", "changes_summary": ["Quantified impact"]},
-            {"variant": "C_technical", "content_md": "Technical content", "changes_summary": ["Added technical highlights"]}
+            {"variant": "A_ats", "content_md": full_resume, "changes_summary": ["Reworked relevant skills"]},
+            {"variant": "B_impact", "content_md": full_resume, "changes_summary": ["Emphasised documented outcomes"]},
+            {"variant": "C_technical", "content_md": full_resume, "changes_summary": ["Clarified technical details"]}
         ],
         "shared_changes": ["Normalized tech names"]
     })

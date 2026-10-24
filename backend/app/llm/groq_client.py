@@ -70,11 +70,16 @@ class GroqClient(BaseLLMClient):
         self.model = model or os.getenv("GROQ_LLM_MODEL", "llama-3.3-70b-versatile")
         self.tools = tools or []
         self.output_type = output_type
-        self.agent = None
+        # Keep one immutable pydantic-ai Agent per output schema. A client may
+        # be shared by concurrent calls; changing output_type on a cached Agent
+        # would make one agent validate against another agent's schema.
+        self._agents: dict[tuple[Any, ...], Any] = {}
 
-    def _init_agent(self):
-        if self.agent is not None:
-            return
+    def _init_agent(self, output_type=None):
+        schema = output_type or self.output_type
+        cache_key = (schema,)
+        if cache_key in self._agents:
+            return self._agents[cache_key]
 
         if Agent is None or GroqModel is None or GroqProvider is None:
             raise RuntimeError(
@@ -85,13 +90,18 @@ class GroqClient(BaseLLMClient):
         agent_kwargs: dict[str, Any] = {}
         if self.tools:
             agent_kwargs["tools"] = self.tools
-        if self.output_type is not None:
-            agent_kwargs["output_type"] = self.output_type
+        if schema is not None:
+            agent_kwargs["output_type"] = schema
+        agent_kwargs["retries"] = {
+            "output": max(0, int(os.getenv("GROQ_OUTPUT_RETRIES", "3")))
+        }
 
         try:
             provider = GroqProvider(api_key=self.api_key)
             model_obj = GroqModel(self.model, provider=provider)
-            self.agent = Agent(model_obj, **agent_kwargs)
+            agent = Agent(model_obj, **agent_kwargs)
+            self._agents[cache_key] = agent
+            return agent
         except Exception as exc:
             raise RuntimeError("Failed to initialize pydantic_ai Agent for Groq") from exc
 
@@ -105,12 +115,14 @@ class GroqClient(BaseLLMClient):
         import json
         import logging as _logging
 
-        self._init_agent()
+        # output_type is per-call so schemas stay isolated even when callers
+        # reuse a provider client. The constructor value remains a default.
+        agent = self._init_agent(kwargs.get("output_type"))
 
         prompt = f"{system_prompt}\n\n{user_prompt}" if system_prompt else user_prompt
 
         try:
-            result = await asyncio.wait_for(self.agent.run(prompt), timeout=120.0)
+            result = await asyncio.wait_for(agent.run(prompt), timeout=120.0)
         except asyncio.TimeoutError as exc:
             _logging.getLogger(__name__).error(
                 "Groq LLM call timed out after 120s for model %s", self.model

@@ -20,6 +20,7 @@ the whole chain.
 """
 
 import asyncio
+import copy
 import logging
 import time
 from datetime import datetime
@@ -85,6 +86,7 @@ class OrchestratorService:
         gap_analysis_client: BaseLLMClient,
         resume_rewrite_client: BaseLLMClient,
         interview_research_client: BaseLLMClient,
+        cover_letter_client: Optional[BaseLLMClient] = None,
     ):
         self.job_analyzer_client = job_analyzer_client
         self.resume_analyzer_client = resume_analyzer_client
@@ -92,6 +94,13 @@ class OrchestratorService:
         self.gap_analysis_client = gap_analysis_client
         self.resume_rewrite_client = resume_rewrite_client
         self.interview_research_client = interview_research_client
+        # Keep provider clients separate: agents set output_type on the client,
+        # and sharing one instance can make a cover letter use the rewrite schema.
+        self.cover_letter_client = cover_letter_client or copy.copy(resume_rewrite_client)
+        if cover_letter_client is None and hasattr(self.cover_letter_client, "agent"):
+            self.cover_letter_client.agent = None
+            if hasattr(self.cover_letter_client, "output_type"):
+                self.cover_letter_client.output_type = None
 
     # ── public entrypoint ────────────────────────────────────────────────────
     async def run(
@@ -412,7 +421,7 @@ class OrchestratorService:
                 response.cover_letter = existing.result if isinstance(existing.result, dict) else None
                 _set_agent_status(run, AGENT_COVER_LETTER, "skipped")
                 return
-            agent = CoverLetterAgent(self.resume_rewrite_client)
+            agent = CoverLetterAgent(self.cover_letter_client)
             result = await agent.run(
                 db=db,
                 resume_id=resume_id,
